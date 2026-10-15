@@ -19,7 +19,7 @@ INTERNNAV_URL=https://github.com/InternRobotics/InternNav.git;  INTERNNAV_REF=7a
 DUALVLN_MODEL=InternRobotics/InternVLA-N1-DualVLN
 DEPTH_MODEL=depth-anything/Depth-Anything-V2-Metric-Hypersim-Small   # InternNav loads its .pth as well
 # robot assets (robots_usd/): too big for git, attached to a GitHub release of this repository
-ASSETS_URL="${ASSETS_URL:-}"   # e.g. https://github.com/<owner>/<repo>/releases/download/v1.0/robots_usd.tar.gz
+ASSETS_URL="${ASSETS_URL:-https://github.com/sheff-hub/b2w-z1-isaacsim/releases/download/v1.0/robots_usd.tar.gz}"   # e.g. https://github.com/<owner>/<repo>/releases/download/v1.0/robots_usd.tar.gz
 
 WITH_VLN=0; CHECK_ONLY=0; ASSETS_FROM=""
 while [ $# -gt 0 ]; do
