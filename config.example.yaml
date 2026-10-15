@@ -1,0 +1,53 @@
+# Machine settings. setup.sh copies this file to config.yaml (not in git) on the first run; edit config.yaml.
+# Every launcher reads config.yaml (isaac/config.py turns it into shell variables). An environment variable of the
+# same meaning still wins, e.g. ISAAC_GPU_UUID=... ./project/live.sh fetch.
+#
+# Relative paths are relative to the repository root. ~ is your home directory.
+
+gpu:
+  # Which GPU the containers get: a UUID from `nvidia-smi --query-gpu=uuid,name --format=csv`, or "all".
+  # On a shared machine pin your own card: `all` hands every GPU to the container, also cards that a cluster
+  # scheduler (e.g. Slurm) gives to other people's jobs.
+  uuid: all
+
+paths:
+  # Third-party code, cloned by setup.sh at pinned versions (see setup.sh for the versions).
+  isaaclab: repos/IsaacLab          # Isaac Lab 2.3.2
+  robot_lab: repos/robot_lab        # robot_lab 2.3.2 + our tasks from training/robot_lab_overlay
+  internnav: repos/InternNav        # DualVLN code (only for language navigation)
+  threedgrut: repos/3dgrut          # 3DGRUT with its own .venv (only for reconstruction/)
+  # Isaac Sim's shader and asset cache (several GB; first start compiles shaders into it).
+  isaac_cache: ~/docker/isaac-sim
+  isaac_cache_6: ~/docker/isaac-sim-6.0
+  # NuRec scene assets: nvidia/ (NVIDIA's reference scenes), mine/ (our reconstructions, see reconstruction/).
+  nurec: scenes/nurec
+  # Hugging Face hub cache (the folder with models--*/ inside) for the DualVLN weights
+  # (InternRobotics/InternVLA-N1-DualVLN, ~16 GB); setup.sh --vln downloads them into it.
+  hf_cache: ~/.cache/huggingface/hub
+
+ros:
+  # ROS 2 domain shared by Isaac Sim and Nav2. Not 0, so other ROS 2 users on the machine stay invisible.
+  domain_id: 37
+
+livestream:
+  # Headless runs stream over WebRTC. The address must be one the viewing computer can reach
+  # (this machine's LAN or VPN address); connect the Isaac Sim WebRTC Streaming Client to it.
+  address: 127.0.0.1
+  port: 49100
+
+images:
+  isaac_sim: nvcr.io/nvidia/isaac-sim:5.1.0
+  isaac_sim_6: nvcr.io/nvidia/isaac-sim:6.0.1
+  isaac_lab: isaac-lab:2.3.2        # built by setup.sh from isaac/docker/Dockerfile.isaaclab
+  nav2: b2w-nav2:jazzy              # built by setup.sh from nav2/Dockerfile
+  dualvln: dualvln-server:latest    # built by setup.sh --vln from vln/Dockerfile.dualvln
+
+containers:
+  # Container names. Change them if two people run this on one machine.
+  nav2: nav2
+  dualvln: dualvln-server
+  live: isaac-live
+
+dualvln:
+  port: 5801
+  quant: none                       # none (bf16, ~21 GB GPU memory) or 8bit (~10 GB)

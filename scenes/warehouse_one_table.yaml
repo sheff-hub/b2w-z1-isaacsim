@@ -1,0 +1,30 @@
+# Scenario S1: NVIDIA's warehouse, one wooden table with one box, a drop zone across the aisle.
+# Read by the fetch task (training/.../fetch_env_cfg.py) and by project/live.sh / run.py.
+# World frame: x along the aisle away from the spawn rack, z up; metres and degrees.
+name: warehouse_one_table
+layout: one_table                       # one_table | multi_table (which Isaac Lab scene class builds it)
+task: RobotLab-Isaac-Fetch-Warehouse-Unitree-B2W-Z1-Gripper-v0
+environment_usd: https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Environments/Simple_Warehouse/warehouse_multiple_shelves.usd
+nav2_map: warehouse                     # nav2/maps/<name>.{pgm,yaml}; make it with project/nav2_probe.py --map <name>
+
+robot:
+  spawn: [1.0, -1.5]                    # x, y; the robot faces +x
+  live_start: [1.0, -1.5, 30]           # x, y, yaw: where project/live.sh starts (the table is in view)
+  demo_starts: [[1.0, -1.5, 30], [0.5, 1.0, 0], [6.0, 1.0, 0]]   # live.sh fetchdemo, in turn
+
+table:                                  # every table of the scene
+  size: [0.6, 1.0]                      # depth (x), width (y); the long side faces the robot's approach from -x
+  height: 0.60                          # top surface (the Z1 cannot reach the 0.99 m packing-table asset)
+  top_thickness: 0.04
+  leg: 0.04                             # square legs
+
+tables:
+  wooden: {center: [4.3, 1.0], rgb: [0.55, 0.38, 0.22]}
+
+box:
+  size: [0.05, 0.05, 0.08]              # 5 x 5 cm footprint (the gripper opens ~8 cm), 8 cm tall
+  mass: 0.2
+  from_edge: 0.10                       # box centre behind the table's near edge
+  rgb: [0.78, 0.58, 0.36]               # cardboard
+
+drop_zone: [1.6, -1.2]                  # where --deliver carries the box

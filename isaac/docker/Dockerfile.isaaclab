@@ -1,0 +1,79 @@
+# Isaac Lab 2.3.2 + robot_lab 2.3.2 on top of the Isaac Sim 5.1.0 image you
+# already have. No second Isaac Sim: this reuses /isaac-sim from the base image.
+#
+# Built by ./setup.sh with the folder holding both checkouts (paths.isaaclab, paths.robot_lab) as the context:
+#     docker build -f Dockerfile.isaaclab -t isaac-lab:2.3.2 .
+#
+# WHY THE COPY IS HERE EVEN THOUGH THE REPOS ARE BIND-MOUNTED AT RUNTIME
+# =====================================================================
+# `pip install -e` records an absolute path and needs something to point at
+# during the build. At runtime isaac_env.sh mounts the host repos over these
+# SAME paths (/workspace/repos), so the editable installs keep resolving --
+# they simply see the live host source instead of this build-time copy.
+# That is what makes config edits take effect with no rebuild.
+FROM nvcr.io/nvidia/isaac-sim:5.1.0
+
+USER root
+
+# The base image has no git, which isaaclab.sh --install needs for its
+# version metadata, and no toolchain for packages that build from source.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git cmake build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# TERM=xterm is load-bearing, not cosmetic. isaaclab.sh runs `tabs 4` on line 16
+# immediately after `set -e`; `tabs` is an ncurses tool that needs a terminfo
+# entry, and the base image ships TERM=dumb, for which it falls back to
+# 'ansi+tabs' -- an entry that does not exist here. The script then dies 0.16s in
+# with "'ansi+tabs': unknown terminal type." and no other explanation.
+ENV ISAACSIM_PATH=/isaac-sim \
+    OMNI_KIT_ACCEPT_EULA=YES \
+    ACCEPT_EULA=Y \
+    PRIVACY_CONSENT=Y \
+    TERM=xterm
+
+COPY IsaacLab  /workspace/repos/IsaacLab
+COPY robot_lab /workspace/repos/robot_lab
+
+# Isaac Lab locates a binary Isaac Sim through this symlink (the documented
+# binary-install route) rather than through a pip-installed isaacsim package.
+RUN ln -sfn /isaac-sim /workspace/repos/IsaacLab/_isaac_sim
+
+WORKDIR /workspace/repos/IsaacLab
+
+# setuptools<81 is required, not preference. source/isaaclab/pyproject.toml asks
+# for unpinned ["setuptools", "wheel", "toml"], so pip's build isolation pulls
+# setuptools 84, which REMOVED pkg_resources -- and the legacy wheel hook still
+# imports it. The isaaclab extension then fails to build with
+# "ModuleNotFoundError: No module named 'pkg_resources'".
+#
+# That failure is silent by default: isaaclab.sh:584 installs each extension via
+# `find -exec bash -c ...`, and find returns 0 even when an -exec child fails, so
+# the script exits 0 having installed everything EXCEPT the core package. The
+# verification step below is what turns that into a build error instead of an
+# image that only breaks at runtime.
+RUN printf 'setuptools<81\n' > /tmp/pip-constraints.txt \
+    && PIP_CONSTRAINT=/tmp/pip-constraints.txt ./isaaclab.sh --install rsl_rl
+
+RUN PIP_CONSTRAINT=/tmp/pip-constraints.txt \
+    /isaac-sim/python.sh -m pip install -e /workspace/repos/robot_lab/source/robot_lab
+
+# Verify by PACKAGE PRESENCE, not by importing. Importing isaaclab here would
+# fail on `No module named 'pxr'`: USD only resolves once Isaac Sim's app
+# environment is up, so a bare `python.sh -c "import isaaclab"` is not a valid
+# check. The real functional test is NVIDIA's documented one --
+#   ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py
+# -- which boots the simulator, and is run after the build rather than in it.
+#
+# `pip show` exits non-zero if ANY of these is missing, which is what catches
+# the silent find -exec failure described above.
+RUN /isaac-sim/python.sh -m pip show \
+        isaaclab isaaclab_assets isaaclab_tasks isaaclab_rl \
+        robot_lab rsl-rl-lib > /dev/null \
+    && echo "VERIFY OK: all Isaac Lab + robot_lab packages installed"
+
+# Back to the image's own user, and make the tree writable by it so a runtime
+# bind-mount or a log write does not hit a permission wall.
+RUN chmod -R a+rwX /workspace
+USER 1234
+WORKDIR /workspace/repos/robot_lab

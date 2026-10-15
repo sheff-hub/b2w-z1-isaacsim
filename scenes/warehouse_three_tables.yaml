@@ -1,0 +1,38 @@
+# Scenarios S2/S3: NVIDIA's warehouse, a red, a yellow and a green table in a row down the aisle, on each a red,
+# a yellow and a green box (their order shuffled at every reset). The task names a box and a table.
+# Tables are 5.5 m apart so each has its own clear 2.1 m docking line along its near edge in both directions
+# (Nav2's staging pose S is 2.1 m before the pick point). The yellow table stands where the single table was.
+name: warehouse_three_tables
+layout: multi_table
+task: RobotLab-Isaac-Fetch3-Warehouse-Unitree-B2W-Z1-Gripper-v0
+environment_usd: https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Environments/Simple_Warehouse/warehouse_multiple_shelves.usd
+nav2_map: warehouse3
+
+robot:
+  spawn: [1.0, -1.5]
+  live_start: [1.0, -1.5, 30]
+  demo_starts: [[1.0, -1.5, 30], [0.5, 1.0, 0], [6.0, 1.0, 0]]
+  random_start: [0.9, 7.4, -7.5, 9.5]  # x0, x1, y0, y1: run.py fetch starts each episode anywhere in here, any heading
+
+table:
+  size: [0.6, 1.0]
+  height: 0.60
+  top_thickness: 0.04
+  leg: 0.04
+
+tables:                                 # name: centre (x, y) and paint; the name is what a task says ("the red table")
+  red:    {center: [4.3, -4.5], rgb: [0.62, 0.17, 0.14]}
+  yellow: {center: [4.3, 1.0],  rgb: [0.86, 0.70, 0.22]}
+  green:  {center: [4.3, 6.5],  rgb: [0.20, 0.48, 0.22]}
+
+box:
+  size: [0.05, 0.05, 0.08]
+  mass: 0.2
+  from_edge: 0.10
+  slots_y: [-0.3, 0.0, 0.3]             # along each table from its centre
+  colors:                               # one box of each colour on every table
+    red:    [0.88, 0.07, 0.07]
+    yellow: [1.0, 0.86, 0.02]
+    green:  [0.04, 0.72, 0.12]
+
+drop_zone: [1.6, -1.2]

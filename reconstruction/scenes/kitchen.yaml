@@ -1,0 +1,14 @@
+# Lounge ("kitchen" dataset): 932 photos, iPhone 1x lens, JPEG.
+# Reproduces the best manual run (scenes/nurec/mine/kitchen, 750k gaussians: PSNR 22.62).
+#     python3 reconstruct.py kitchen
+dataset:
+  name: kitchen_1x                  # photo folder under paths.dataset_root
+  scene_name: kitchen_from_script   # output folder; the manual run in .../kitchen is left alone
+
+colmap:
+  max_image_size: 2000            # 932 textured photos are not feature-starved; native would add ~35 min
+  matcher: exhaustive             # fine up to ~1500 photos
+
+train:
+  downsample_factor: 2
+  cap_ratio: 1.5                  # ~750k gaussians for 497,643 COLMAP points; 3x scored lower (flat curve)

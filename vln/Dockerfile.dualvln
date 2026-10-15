@@ -1,0 +1,11 @@
+# DualVLN (InternVLA-N1) inference server, separate from Isaac Sim/Lab.
+# Versions from InternNav requirements/internvla_n1.txt; flash-attn is NOT installed
+# (the server loads the model with PyTorch SDPA instead), bitsandbytes for 8-bit.
+FROM nvcr.io/nvidia/pytorch:25.10-py3
+RUN pip install --no-cache-dir \
+        transformers==4.51.0 accelerate==1.4.0 diffusers==0.33.1 \
+        bitsandbytes flask ftfy einops timm qwen-vl-utils opencv-python-headless
+ENV PYTHONPATH=/workspace/InternNav \
+    HF_HOME=/workspace/huggingface \
+    HF_HUB_CACHE=/workspace/huggingface
+WORKDIR /workspace

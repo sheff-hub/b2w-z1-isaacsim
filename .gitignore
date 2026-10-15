@@ -1,0 +1,33 @@
+# ---- this machine (template: config.example.yaml)
+config.yaml
+
+# ---- third-party checkouts, cloned by setup.sh
+repos/
+
+# ---- large assets: a release download (setup.sh), see robots_usd/README.md
+robots_usd/*
+!robots_usd/README.md
+dist/
+
+# ---- outputs of runs
+renders/*
+!renders/README.md
+datasets/*
+!datasets/README.md
+
+# ---- runtime files
+project/instruction.txt
+project/target.txt
+vln/out/
+nav2/b2w_nav2_params.yaml
+scenes/nurec/
+
+# ---- Python
+__pycache__/
+*.pyc
+.venv/
+
+# ---- never commit credentials
+*token*
+*.env
+.env*

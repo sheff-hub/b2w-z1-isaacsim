@@ -1,0 +1,13 @@
+# Home (bedroom with a kitchen corner): 428 photos, iPhone 0.5x ultra-wide, JPEG, locked exposure.
+# Reproduces the best manual run (scenes/nurec/mine/room05, 400k gaussians: PSNR 25.73).
+#     python3 reconstruct.py home
+dataset:
+  name: room_0.5x                 # photo folder under paths.dataset_root
+  scene_name: room_from_script    # output folder under paths.scenes_root
+
+colmap:
+  max_image_size: null            # auto: native resolution below 500 photos (blank walls need every feature)
+
+train:
+  downsample_factor: 2            # 2016 x 1512, the proven setting (null would pick from free GPU memory)
+  cap_ratio: 2.9                  # ~400k gaussians for 139,737 COLMAP points: the peak of the cap sweep

@@ -1,0 +1,8 @@
+# host-side dataset tools (tools/raw_to_lerobot.py, plot_episode.py) and run.py
+numpy
+pandas
+pyarrow
+imageio[ffmpeg]
+matplotlib
+pyyaml
+pillow
