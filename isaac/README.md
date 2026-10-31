@@ -200,6 +200,7 @@ ROS 2 commands or poking at files:
 
 ```bash
 ./isaac/run_script.sh <script.py>      # a repository script, with every mount and the GPU pin
+./isaac/run_render_views.sh <stage> <views.json> <out>   # renders + drop test of a splat stage (plain Isaac Sim)
 docker run --rm -it --entrypoint bash --gpus device=<gpu.uuid> -v "$PWD:/workspace" \
   --network=host --ipc=host isaac-lab:2.3.2     # a bare shell (no third-party mounts)
 ```
@@ -222,7 +223,7 @@ in the container are lost when it stops.**
 
 ```
 <paths.nurec>/nvidia/   NVIDIA's reference scenes -- read-only inside the container
-<paths.nurec>/mine/     your own reconstructions (reconstruction/) -- writable
+<paths.nurec>/mine/     your own reconstructions (reconstruction_no_mesh/, reconstruction_with_mesh/) -- writable
 ```
 
 On the lab workstation: `zh_fourth_floor_iphone` (1.1 G) and `hand_hold-endeavor-livingroom` (3.7 G), from the

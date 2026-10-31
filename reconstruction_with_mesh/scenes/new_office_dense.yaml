@@ -1,0 +1,15 @@
+# The three-height office capture of 27 Oct 2026 (dataset_for_with_mesh/new_office: 1_mid 1.36 m, 2_low 0.50 m,
+# 3_high 1.94 m above the floor). Its first build (scene new_office, 28 Oct) took one image per 6 cm / 3 deg and a
+# 4M gaussian budget: PSNR 22.0 dB, with fog in the corridors. This one takes denser images and the budget of the
+# 22 Oct walk (1,886,992 gaussians): three heights see the same place, not a larger one.
+#     python3 reconstruct.py new_office_dense
+recording:
+  name: new_office
+  scene_name: new_office_dense
+prep:
+  image_step_m: 0.03
+  image_step_deg: 2.0
+train:
+  caps: [1886992]
+gpu:
+  min_free_gb: 8           # its training peaked at 5.4 GB (2.78M gaussians, 28 Oct); the card is shared

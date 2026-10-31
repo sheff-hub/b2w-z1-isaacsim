@@ -7,7 +7,7 @@
 #   ./setup.sh --check             only report what is there and what is missing
 #
 # Needs: Linux with an NVIDIA GPU and driver, Docker with the NVIDIA container toolkit, git, python3 with PyYAML.
-# Reconstruction from phone photos (reconstruction/) has its own setup: see reconstruction/README.md.
+# Reconstruction (reconstruction_no_mesh/, reconstruction_with_mesh/) has its own setup: see their README.md.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${ROOT}"
@@ -135,6 +135,9 @@ fi
 if have_image "${IMAGE_NAV2}"; then ok "${IMAGE_NAV2}"
 elif [ "${CHECK_ONLY}" = 1 ]; then todo "${IMAGE_NAV2} not built"
 else docker build -t "${IMAGE_NAV2}" nav2/ && ok "built ${IMAGE_NAV2}"; fi
+if have_image "${IMAGE_MOVEIT}"; then ok "${IMAGE_MOVEIT}"
+elif [ "${CHECK_ONLY}" = 1 ]; then todo "${IMAGE_MOVEIT} not built"
+else docker build -t "${IMAGE_MOVEIT}" moveit/ && ok "built ${IMAGE_MOVEIT}"; fi
 
 # ------------------------------------------------------------------------------------------------ 6. robot assets
 step "6. robot assets (robots_usd/)"
@@ -146,6 +149,13 @@ elif [ -n "${ASSETS_URL}" ]; then
     curl -fL "${ASSETS_URL}" | tar -xz -C robots_usd && ok "downloaded robots_usd/"
 else
     todo "robots_usd/ missing: ./setup.sh --assets-from <folder>, or ASSETS_URL=<release tarball> ./setup.sh"
+fi
+
+# MoveIt's robot description is made from the robot assets (the Z1 URDF + the simulator's joint limits)
+if [ -f robots_usd/z1_gripper_description/urdf/z1_gripper_local.urdf ]; then
+    if [ -f moveit/config/z1.urdf ]; then ok "moveit/config/z1.urdf"
+    elif [ "${CHECK_ONLY}" = 1 ]; then todo "moveit/config/z1.urdf not made (python3 moveit/make_config.py)"
+    else python3 moveit/make_config.py >/dev/null && ok "made moveit/config/z1.urdf"; fi
 fi
 
 # ------------------------------------------------------------------------------------------------ 7. language navigation

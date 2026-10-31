@@ -1,4 +1,4 @@
-# reconstruction_script_nomesh
+# reconstruction_no_mesh: phone photos -> photoreal Isaac Sim scene (no mesh)
 
 Photoreal 3D reconstruction of indoor scenes from phone photos, producing a
 **NuRec `.usdz`** that opens in NVIDIA Isaac Sim.
@@ -9,8 +9,27 @@ photos  ->  COLMAP (poses + sparse points)  ->  3DGRUT / 3DGUT  ->  NuRec .usdz
 
 **Appearance only — this produces no mesh.** The output is a Gaussian volume: it
 looks photoreal but has no surfaces, so nothing collides with it and raycasts
-pass through. Add a ground plane in Isaac Sim, or use the stereo/nvblox route if
-you need real geometry.
+pass through. Add a ground plane in Isaac Sim. For a scene a robot can drive in (splat + LiDAR collision mesh)
+use `../reconstruction_with_mesh` with an iPhone LiDAR recording instead.
+
+---
+
+## How to reconstruct a room, step by step
+
+1. **Photograph the room**: 400-900 JPEG photos with one fixed lens, locked exposure and white balance, stepping
+   sideways between shots (see the capture guide below).
+2. **Put the photos in one folder** in the dataset folder `<paths.nurec>/mine/dataset_for_no_mesh/<room>/`
+   (`paths.nurec` is set in the repository's `config.yaml`; default `scenes/nurec`).
+3. **Optional: a scene file** `scenes/<room>.yaml` with the output name and settings (`scenes/README.md`).
+4. **Run** (in `tmux`: it takes 1-4 hours), from the repository root or from this folder:
+   ```sh
+   python3 run.py reconstruct <room>                # = python3 reconstruction_no_mesh/reconstruct.py <room>
+   ```
+5. **Open the result** in Isaac Sim: `<paths.nurec>/mine/<room>/scene.usdz` (File -> Import), then
+   Create -> Physics -> Ground Plane. Check `<paths.nurec>/mine/<room>/REPORT.md` and `comparison.png`.
+
+If it stops, fix the cause shown at the end of `<paths.nurec>/mine/<room>/pipeline.log` and run the same command
+again: finished stages are skipped. First time on a machine: install the requirements below.
 
 ---
 
@@ -82,8 +101,8 @@ Elsewhere? Point `paths.threedgrut` in the repository's `config.yaml` at the che
 
 ## Usage
 
-Put a folder of photos under `paths.dataset_root`, write a short scene file for it (`scenes/my_room.yaml`, see
-`scenes/README.md`), then:
+Put a folder of photos in `<paths.nurec>/mine/dataset_for_no_mesh/`, write a short scene file for it
+(`scenes/my_room.yaml`, see `scenes/README.md`), then:
 
 ```sh
 python3 reconstruct.py my_room
@@ -144,7 +163,7 @@ python3 reconstruct.py my_room --name lounge        # output name
 Settings are layered, later wins:
 
 1. `config.yaml` (this folder): defaults. Where things live on this machine and the GPU come from the
-   repository's `config.yaml` (one file for the whole project): photos in `<paths.nurec>/mine/dataset/<folder>`,
+   repository's `config.yaml` (one file for the whole project): photos in `<paths.nurec>/mine/dataset_for_no_mesh/<folder>`,
    scenes built in `<paths.nurec>/mine/<name>`, 3DGRUT at `paths.threedgrut`, the GPU from `gpu.uuid`.
 2. `scenes/<name>.yaml`: one short file per room: its photo folder, output name and the settings it needs.
 3. the command line, e.g. `--caps`, `--downsample`.

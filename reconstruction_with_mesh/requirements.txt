@@ -1,0 +1,4 @@
+# Python deps of the driver itself (any python3). The tools have their own environment (requirements-tools.txt,
+# setup_tools_env.sh) and 3DGRUT brings its own venv (see README).
+PyYAML>=6.0
+numpy>=1.21

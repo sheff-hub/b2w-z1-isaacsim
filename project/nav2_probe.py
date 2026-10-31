@@ -15,6 +15,8 @@ parser.add_argument("--task", default="RobotLab-Isaac-Fetch-Warehouse-Unitree-B2
 parser.add_argument("--res", type=float, default=0.05)
 parser.add_argument("--margin", type=float, default=0.5, help="m added round the floor's bounding box")
 parser.add_argument("--map", default="warehouse", help="map name: nav2/maps/<map>.{pgm,yaml} (warehouse3 for the three-table scene)")
+parser.add_argument("--area", default="", help="x0,x1,y0,y1: map only this part of the stage (default: the whole floor), "
+                    "e.g. the scene file's nav2_area for a big building")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 args.headless = True
@@ -63,6 +65,9 @@ lo, hi = rng.GetMin(), rng.GetMax()
 print(f"PROBE ground bbox x {lo[0]:.2f}..{hi[0]:.2f}  y {lo[1]:.2f}..{hi[1]:.2f}  z {lo[2]:.2f}..{hi[2]:.2f}", flush=True)
 xr = (math.floor(lo[0] - args.margin), math.ceil(hi[0] + args.margin))
 yr = (math.floor(lo[1] - args.margin), math.ceil(hi[1] + args.margin))
+if args.area:
+    ax0, ax1, ay0, ay1 = (float(v) for v in args.area.split(","))
+    xr, yr = (ax0, ax1), (ay0, ay1)
 occ = nav2_link.build_map(f"/workspace/nav2/maps/{args.map}", xr, yr, res=args.res)
 
 p = robot.data.root_pos_w[0].cpu().numpy()
@@ -87,8 +92,12 @@ ax.plot(p[0], p[1], "b^", ms=10, label="robot")
 from robot_lab.tasks.manager_based.locomotion.velocity.config.wheeled.unitree_b2w import fetch_env_cfg as F  # noqa: E402
 tx, ty = F.TABLE_CENTER
 dx, dy = F.TABLE_SIZE
-for (tx_, ty_) in (F.TABLES3.values() if "Fetch3" in args.task else [(tx, ty)]):
-    ax.add_patch(plt.Rectangle((tx_ - dx / 2, ty_ - dy / 2), dx, dy, fill=False, ec="green", lw=2))
+if "Shelf" in args.task:  # the scene file's obstacle footprints
+    for (x0, x1, y0, y1) in F.SCENE_SHELF["obstacles"].values():
+        ax.add_patch(plt.Rectangle((x0, y0), x1 - x0, y1 - y0, fill=False, ec="green", lw=1.5))
+else:
+    for (tx_, ty_) in (F.TABLES3.values() if "Fetch3" in args.task else [(tx, ty)]):
+        ax.add_patch(plt.Rectangle((tx_ - dx / 2, ty_ - dy / 2), dx, dy, fill=False, ec="green", lw=2))
 ax.legend(loc="upper right")
 ax.set_title("occupancy map from colliders (black) + one 3-height scan")
 import os  # noqa: E402

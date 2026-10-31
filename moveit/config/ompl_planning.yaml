@@ -1,0 +1,20 @@
+# OMPL for the Z1 (MoveIt 2.12's default pipeline, plus the arm's group settings).
+planning_plugins:
+  - ompl_interface/OMPLPlanner
+request_adapters:
+  - default_planning_request_adapters/ResolveConstraintFrames
+  - default_planning_request_adapters/ValidateWorkspaceBounds
+  - default_planning_request_adapters/CheckStartStateBounds
+  - default_planning_request_adapters/CheckStartStateCollision
+response_adapters:
+  - default_planning_response_adapters/AddTimeOptimalParameterization
+  - default_planning_response_adapters/ValidateSolution
+  - default_planning_response_adapters/DisplayMotionPath
+arm:
+  planner_configs:
+    - RRTConnect
+    - RRTstar
+  projection_evaluator: joints(joint1,joint2)
+  # Check motions between waypoints finely: the stowed gripper sits ~2.6 cm from the lidar cage, and with the
+  # default resolution 5 of 36 plans out of the rest pose grazed the cage after re-timing (ValidateSolution).
+  longest_valid_segment_fraction: 0.002

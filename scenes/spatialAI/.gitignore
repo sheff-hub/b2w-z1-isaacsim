@@ -1,0 +1,8 @@
+# SpatialAI inputs, built stages, drive videos and renders: 10-490 MB each, kept on the lab machine only
+*.ply
+*.usdc
+*.usdz
+*.mp4
+*.npz
+check/renders/
+*/check/renders/

@@ -135,7 +135,7 @@ def col(a):
 tasks, task_rows, ep_rows, stat_rows = {}, [], [], []
 index = 0
 EP_KEYS = ("nav_instruction", "deliver_task", "success", "delivered", "vln_arrived", "vln_reason", "vln_right_table", "nav2_docked",
-           "fell", "start", "box_start_w", "loco", "seed", "side", "target", "scene", "nav2", "vln_follower", "time_s")
+           "fell", "start", "box_start_w", "loco", "arm", "seed", "side", "target", "scene", "nav2", "vln_follower", "time_s")
 for ei, (path, meta) in enumerate(eps):
     z = np.load(os.path.join(path, "data.npz"))
     n = len(z["t"])

@@ -1,0 +1,167 @@
+{
+  "inputs": {
+    "splat": "spatialAi_splat.ply",
+    "mesh": "spatialAi_mesh.usdc"
+  },
+  "mesh_to_splat": {
+    "rotation": [
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        -1,
+        0
+      ],
+      [
+        0,
+        0,
+        -1
+      ]
+    ],
+    "median_gap_cm": 1.7,
+    "icp_residual": {
+      "scale": 1.00043,
+      "deg": 0.016,
+      "mm": 1.2
+    }
+  },
+  "splat_vs_mesh_cm": {
+    "median": 1.42,
+    "p90": 2.65
+  },
+  "stage_frame": "Z-up, metres, floor at z=0, walls along X/Y, origin at the most open floor spot",
+  "splat_to_stage": [
+    [
+      0.921351,
+      -0.006878,
+      0.388671,
+      0.411661
+    ],
+    [
+      0.38873,
+      0.013071,
+      -0.921259,
+      -0.321049
+    ],
+    [
+      0.001256,
+      0.999891,
+      0.014717,
+      1.307699
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "mesh_to_stage": [
+    [
+      0.921351,
+      0.006878,
+      -0.388671,
+      0.411661
+    ],
+    [
+      0.38873,
+      -0.013071,
+      0.921259,
+      -0.321049
+    ],
+    [
+      0.001256,
+      -0.999891,
+      -0.014717,
+      1.307699
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "matrix_convention": "column vectors: p_stage = M @ [p, 1]",
+  "floor": {
+    "tilt_deg": 0.846,
+    "fit_rms_cm": 0.71,
+    "inlier_area_m2": 10.8
+  },
+  "walls_turned_by_deg": 22.88,
+  "origin": {
+    "most_open_spot_clearance_m": 0.7,
+    "spatialai_origin_in_stage": [
+      0.412,
+      -0.321,
+      1.308
+    ]
+  },
+  "room": {
+    "footprint_m2": 22.2,
+    "box_xy": [
+      [
+        -2.92,
+        -2.12
+      ],
+      [
+        3.82,
+        1.73
+      ]
+    ],
+    "ceiling_m": 2.78
+  },
+  "floor_pits": [
+    {
+      "centre_xy": [
+        -1.933,
+        -0.126
+      ],
+      "area_m2": 0.71,
+      "max_depth_m": 0.26,
+      "drop_xyz": [
+        -2.2,
+        0.4,
+        1.0
+      ]
+    },
+    {
+      "centre_xy": [
+        -1.317,
+        0.308
+      ],
+      "area_m2": 0.03,
+      "max_depth_m": 0.2,
+      "drop_xyz": [
+        -1.25,
+        0.2,
+        1.0
+      ]
+    },
+    {
+      "centre_xy": [
+        0.264,
+        -0.991
+      ],
+      "area_m2": 0.03,
+      "max_depth_m": 0.2,
+      "drop_xyz": [
+        0.05,
+        -1.0,
+        1.0
+      ]
+    }
+  ],
+  "splat": {
+    "gaussians": 4434931,
+    "dropped_nan": 0,
+    "opacity_clamped": 1011357
+  },
+  "outputs": {
+    "stage": "spatialAI_bedroom.usdz",
+    "check": "spatialAI_bedroom_check.usda"
+  }
+}

@@ -1,5 +1,6 @@
-# ---- this machine (template: config.example.yaml)
-config.yaml
+# ---- this machine (template: config.example.yaml). Anchored: the reconstruction folders' config.yaml are
+# their defaults and belong in git (unanchored, this line kept reconstruction/config.yaml out of the repo)
+/config.yaml
 
 # ---- third-party checkouts, cloned by setup.sh
 repos/
@@ -31,3 +32,6 @@ __pycache__/
 *token*
 *.env
 .env*
+
+# ---- MoveIt: made by moveit/make_config.py from the robot assets
+moveit/config/z1.urdf

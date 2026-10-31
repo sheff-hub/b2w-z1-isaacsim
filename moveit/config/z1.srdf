@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<!-- Semantic description of the Z1 arm + gripper for MoveIt. Planning group "arm": link00 (the arm's base on the B2W)
+     to grasp_point (between the fingertips). The disable_collisions list: links next to each other (always touching
+     in these primitive/mesh colliders), and pairs found in contact in nearly every sampled pose (moveit/acm_check.py). -->
+<robot name="z1">
+  <group name="arm">
+    <chain base_link="link00" tip_link="grasp_point"/>
+  </group>
+  <group name="gripper">
+    <joint name="jointGripper"/>
+  </group>
+  <group_state name="stow" group="arm">
+    <joint name="joint1" value="0"/><joint name="joint2" value="0"/><joint name="joint3" value="0"/>
+    <joint name="joint4" value="0"/><joint name="joint5" value="0"/><joint name="joint6" value="0"/>
+  </group_state>
+  <end_effector name="hand" parent_link="link06" group="gripper" parent_group="arm"/>
+  <passive_joint name="jointGripper"/>
+  <disable_collisions link1="link00" link2="link01" reason="Adjacent"/>
+  <disable_collisions link1="link01" link2="link02" reason="Adjacent"/>
+  <disable_collisions link1="link02" link2="link03" reason="Adjacent"/>
+  <disable_collisions link1="link03" link2="link04" reason="Adjacent"/>
+  <disable_collisions link1="link04" link2="link05" reason="Adjacent"/>
+  <disable_collisions link1="link05" link2="link06" reason="Adjacent"/>
+  <disable_collisions link1="link06" link2="gripperStator" reason="Adjacent"/>
+  <disable_collisions link1="gripperStator" link2="gripperMover" reason="Adjacent"/>
+  <!-- moveit/acm_check.py, 2000 random states: no pair is in contact in nearly every pose; link02-link06 touch in
+       the rest pose (all joints 0: the folded arm), an artefact of the simplified cylinders, so the pick could never
+       start. The other pairs it found (gripper/link06 against link00/link02/link04 in 0.2-3 % of poses) stay checked. -->
+  <disable_collisions link1="link02" link2="link06" reason="Default"/>
+</robot>

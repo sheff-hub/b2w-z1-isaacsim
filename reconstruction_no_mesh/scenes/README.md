@@ -5,7 +5,7 @@ both. Only write what differs from the defaults.
 
 ```yaml
 dataset:
-  name: my_photos            # folder under paths.dataset_root (or an absolute path)
+  name: my_photos            # folder under paths.dataset_root (<paths.nurec>/mine/dataset_for_no_mesh/), or absolute
   scene_name: my_room        # output folder under paths.scenes_root
 colmap:
   max_image_size: null       # null = native below 500 photos, else 2000

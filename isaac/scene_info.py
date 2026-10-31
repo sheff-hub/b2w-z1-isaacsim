@@ -4,7 +4,7 @@
     eval "$(python3 isaac/scene_info.py warehouse_three_tables)"     # or 1 / 3 (the two warehouse scenes), or a path
 
 Sets SCENE_NAME, SCENE_FILE (host path), SCENE_FILE_CONTAINER (/workspace/scenes/...), SCENE_TASK, SCENE_LAYOUT,
-SCENE_NAV2_MAP, SCENE_START ("x,y,yaw") and SCENE_DEMO_STARTS ("x,y,yaw; ...").
+SCENE_NAV2_MAP, SCENE_NAV2_STAGING (m from the docking point to Nav2's staging pose), SCENE_START ("x,y,yaw") and SCENE_DEMO_STARTS ("x,y,yaw; ...").
 """
 import shlex
 import sys
@@ -42,6 +42,9 @@ def main():
         "SCENE_TASK": s["task"],
         "SCENE_LAYOUT": s.get("layout", "one_table"),
         "SCENE_NAV2_MAP": s.get("nav2_map", ""),
+        "SCENE_NAV2_STAGING": s.get("nav2_staging", 2.1),
+        "SCENE_NAV2_OBSTACLE_RANGE": s.get("nav2_obstacle_range", 5.0),
+        "SCENE_NAV2_GLOBAL_LIDAR": int(bool(s.get("nav2_global_lidar", True))),
         "SCENE_START": pose(s["robot"]["live_start"]),
         "SCENE_DEMO_STARTS": "; ".join(pose(p) for p in s["robot"].get("demo_starts", [s["robot"]["live_start"]])),
     }

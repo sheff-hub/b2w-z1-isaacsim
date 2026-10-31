@@ -39,7 +39,7 @@ import os
 import numpy as np
 
 FORMAT = 2
-PHASES = ["idle", "walk", "backoff", "dock", "pick", "carry", "deliver", "nav2", "nav2_dock"]
+PHASES = ["idle", "walk", "backoff", "dock", "pick", "carry", "deliver", "nav2", "nav2_dock", "place"]
 IMG = (320, 240)    # w, h: the cameras' 4:3 at half the VLN resolution
 DEPTH = (160, 120)  # w, h of the stored depth
 DEPTH_MAX = 10.0    # m

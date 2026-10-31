@@ -41,6 +41,28 @@ Options:
 5. The scripted pick starts there. If any Nav2 step fails, the scripted route takes over from
    wherever the robot is.
 
+The 2.1 m is per scene (`nav2_staging` in the scene file; `run.py` and `live.sh` pass it to `make_params.py`, and
+`fetch_box.py` reads it from the same file). The hospital's shelf is reached along the reception desk: 2.1 m put S
+beside the desk, where the robot had no room to turn and the controller stopped ("collision ahead"); 3.0 m puts S in
+the open past the desk's corner (`hospital_reception.yaml`). In the hall the shelf is docked from the south, and
+3.0 m would put S on the hall's south wall: 2.0 m (`hospital_hall.yaml`). Maps of big buildings: `nav2_probe.py --area x0,x1,y0,y1` (the scene's `nav2_area`).
+
+Two more per-scene settings (`hospital_hall.yaml`): `nav2_obstacle_range` (default 5 m) and
+`nav2_global_lidar` (default true). In the hospital's open hall the lidar sees much floor beyond 4 m, where its
+returns scatter above the 0.15 m obstacle threshold: they filled a 3 x 3 m patch of the global costmap with phantom
+obstacles, a staging pose lay inside it, and the planner failed ("Failed to create plan with tolerance"). There the
+lidar marks only within 3.5 m and the global planner plans on the static map alone (the map comes from the
+colliders, so it has everything); the local costmap still watches the lidar.
+
+Marks that nothing clears: in the open hall the lidar has nothing in range beyond a mark to ray-trace it away, and
+marks from a robot just reset (settling) held the controller still for a minute ("collision ahead"). `fetch_box.py`
+empties the costmaps at the start of each DualVLN walk and when the robot stands 3 s while following a path
+(`nav2_link.clear_costmaps`). And readiness: right after a restart the controller server's activation once timed out
+while the lifecycle manager reported Nav2 active (every FollowPath rejected), and once never came up at all;
+`nav2_link.wait_ready` now asks the controller itself and, halfway through its wait, resets and restarts the stack.
+Maps big enough for where a walk may end: in the door scene DualVLN once walked 11 m the wrong way and up the
+corridor, off the first map, and Nav2 could not plan back (`hospital_doors.yaml` maps the hall and the whole corridor).
+
 Results:
 - **24 random starts, seed 7** (`renders/fetch_nav2/results_val24_dock.json`):
   - **24/24 docked by Nav2** (no fallback used), **24/24 picks**, 0 falls, 0 table contacts;

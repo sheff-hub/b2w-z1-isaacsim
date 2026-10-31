@@ -1,0 +1,44 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    doc = """The SpatialAI new_office stage as the ground of an Isaac Lab task (terrain_type "usd"; Isaac/scene_tour.py).
+The stage, plus a physics material on its two colliders: Isaac Lab does not apply the task's terrain material to
+"usd" terrain, so without this the wheels get PhysX's default friction (0.5)."""
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "World" (
+    prepend references = @../spatialAI_new_office.usdz@
+)
+{
+    over "volume"
+    {
+        over "mesh" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding:physics = </World/ground_material> (
+                bindMaterialAs = "weakerThanDescendants"
+            )
+        }
+
+        over "floor" (
+            prepend apiSchemas = ["MaterialBindingAPI"]
+        )
+        {
+            rel material:binding:physics = </World/ground_material> (
+                bindMaterialAs = "weakerThanDescendants"
+            )
+        }
+    }
+
+    def Material "ground_material" (
+        prepend apiSchemas = ["PhysicsMaterialAPI"]
+    )
+    {
+        float physics:dynamicFriction = 1
+        float physics:restitution = 0
+        float physics:staticFriction = 1
+    }
+}

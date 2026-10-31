@@ -1,0 +1,40 @@
+#usda 1.0
+(
+    customLayerData = {
+        dictionary renderSettings = {
+            int "rtx:directLighting:sampledLighting:samplesPerPixel" = 8
+            bool "rtx:material:enableRefraction" = 0
+            bool "rtx:matteObject:visibility:secondaryRays" = 1
+            bool "rtx:post:histogram:enabled" = 0
+            bool "rtx:post:registeredCompositing:invertColorCorrection" = 1
+            bool "rtx:post:registeredCompositing:invertToneMap" = 1
+            int "rtx:post:tonemap:op" = 2
+            bool "rtx:raytracing:fractionalCutoutOpacity" = 0
+            string "rtx:rendermode" = "RaytracedLighting"
+        }
+    }
+    defaultPrim = "World"
+    doc = "Alignment check: the mesh is visible in its vertex colours. Toggle /World/volume/volume (the splat) to compare."
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def "World" (
+    prepend references = @./spatialAI_new_office.usdz@
+)
+{
+    over "volume"
+    {
+        over "volume"
+        {
+            custom rel proxy = None
+        }
+
+        over "mesh"
+        {
+            bool primvars:isMatteObject = 0
+            token visibility = "inherited"
+        }
+    }
+}
+

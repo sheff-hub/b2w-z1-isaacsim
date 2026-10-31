@@ -3,22 +3,26 @@
 #   ./process.sh            live: new events as they happen (Ctrl-C to quit; the run goes on)
 #   ./process.sh --all      the whole current run from its start, then live
 #   ./process.sh --once     print what happened so far and exit
-# Reads renders/progress/progress.jsonl, which fetch_box.py rewrites at every start (progress.py).
+# Reads renders/progress/progress.jsonl (repository root), which fetch_box.py rewrites at every start (progress.py).
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec python3 - "$HERE/renders/progress/progress.jsonl" "$@" <<'EOF'
+exec python3 - "$HERE/../renders/progress/progress.jsonl" "$@" <<'EOF'
 import json, os, sys, time
 
 path, args = sys.argv[1], sys.argv[2:]
 ALL, ONCE = "--all" in args or "--once" in args, "--once" in args
 B, G, R, Y, C, D, X = ("\033[1m", "\033[32m", "\033[31m", "\033[33m", "\033[36m", "\033[2m", "\033[0m") \
     if sys.stdout.isatty() else ("",) * 7
-PHASES = {"walk": "DualVLN is walking the robot to the table", "backoff": "backing off from the table",
+PHASES = {"walk": "DualVLN is walking the robot to the named table / shelf", "backoff": "backing off from it",
           "nav2": "Nav2 is driving", "nav2_dock": "Nav2's docking server is driving to the pick point",
           "dock": "scripted final approach to the pick point",
-          "pick": "picking up the box", "deliver": "carrying the box to the drop zone", "idle": "idle"}
-STAGES = {"crouch": "crouching", "unfold": "unfolding the arm", "pre_grasp": "arm above the box",
+          "pick": "picking up the box", "deliver": "carrying the box (to the drop zone / the table)",
+          "place": "putting the box on the table", "idle": "idle"}
+STAGES = {"unfold": "unfolding the arm", "pre_grasp": "arm above the box",
           "open": "opening the gripper", "descend": "lowering onto the box", "close": "closing the gripper",
-          "lift": "lifting", "standup": "standing up", "carry_move": "arm to the carry pose", "carry_hold": "checking the grip"}
+          "lift": "lifting", "standup": "standing up", "carry_move": "arm to the carry pose", "carry_hold": "checking the grip",
+          "retreat": "pulling the box out of the shelf", "swing": "swinging the arm to the table's side",
+          "pre_place": "box above its spot", "lower": "lowering the box onto the table", "release": "opening the gripper",
+          "withdraw": "pulling the hand back", "stow": "folding the arm", "crouch": "setting the body height for the box"}
 state = {"n": None}
 
 
@@ -41,7 +45,7 @@ def show(e):
         ph = e["phase"]
         name, _, sub = ph.partition(":")
         if sub:
-            print(pre + f"   pick: {STAGES.get(sub, sub)}")
+            print(pre + f"   {name}: {STAGES.get(sub, sub)}")
         else:
             print(pre + f"{B}> {PHASES.get(name, name)}{X}")
     elif ev == "beat":
@@ -75,8 +79,15 @@ def show(e):
     elif ev == "pick_done":
         c = e.get("carry") or {}
         ok = e.get("success")
-        print(pre + f"{G if ok else R}pick {'succeeded' if ok else 'FAILED'}{X}: box {c.get('box_lift_cm')} cm above the "
-              f"table, {c.get('box_to_grasp_cm')} cm from the grasp point")
+        print(pre + f"{G if ok else R}pick {'succeeded' if ok else 'FAILED'}{X}: box {c.get('box_lift_cm')} cm above where "
+              f"it stood, {c.get('box_to_grasp_cm')} cm from the grasp point")
+    elif ev == "note":
+        print(pre + f"{Y}{e.get('text')}{X}")
+    elif ev == "place_done":
+        p = e.get("place") or {}
+        ok = e.get("placed")
+        print(pre + f"{G if ok else R}{'placed' if ok else 'NOT placed'}{X}" + (f": {p.get('off_spot_cm')} cm from its spot, "
+              f"tilted {p.get('tilt_deg')} deg" if "off_spot_cm" in p else ""))
     elif ev == "deliver_done":
         print(pre + f"{G if e.get('arrived') else R}delivered{X}" + ("" if e.get("arrived") else " (NOT arrived)"))
     elif ev == "result":

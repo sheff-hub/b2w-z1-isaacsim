@@ -14,6 +14,7 @@ The robot is built from Unitree's descriptions by scripts, in this order. They r
 | `build_b2w_z1_rl_asset.py` | `b2w_z1_rl.usd`: B2W + Z1 as one articulation from the hand-placed `b2w_z1.usd` (training robot) |
 | `make_d405_usd.py` | `RealSense/d405.usd` from Intel's mesh |
 | `build_b2w_z1_gripper_asset.py` (+ `wrist_d405.py`) | `b2w_z1_gripper.usd`: the fetch robot, 23 DoF, arm 11 cm back, gripper, D455 + D405 on the printed holder, OS0 lidar, self-collision filtered |
+| `build_door_asset.py` | the door task's hinged door with a lever handle (`scenes/assets/door_hinged.usda`) from the hospital's SM_Door_01: the prop split into leaf, levers and backplates, links frame / leaf / handle, joints `hinge` and `handle_joint`, colliders clear of the doorway's threshold (any Python with `pxr`; downloads the prop) |
 
 `b2w_z1.usd` (where the arm sits on the body) was placed by hand in Isaac Sim; the scripts above read it, never write it.
 
@@ -29,4 +30,10 @@ Host Python with numpy, pandas, pyarrow, imageio (+ matplotlib for plots); `pip 
 
 ## Other
 
-`dng_to_jpeg.py`: iPhone RAW (DNG) photos to JPEG for reconstruction (JPEG reconstructed better, see `reconstruction/`).
+`dng_to_jpeg.py`: iPhone RAW (DNG) photos to JPEG for reconstruction (JPEG reconstructed better, see `reconstruction_no_mesh/`).
+
+## Reconstruction experiments (`reconstruction_experiments/`)
+
+The studies behind `reconstruction_no_mesh/` and `reconstruction_with_mesh/`: a collision mesh from a splat (TSDF of
+rendered depth), Depth Anything 3 + VDBFusion, NVIDIA's NuRec stereo workflow on phone data, and the four-way
+comparison that chose the LiDAR method. Kept as run; see its [README](reconstruction_experiments/README.md).

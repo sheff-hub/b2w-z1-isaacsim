@@ -1,0 +1,83 @@
+# Scenario S7: open the blue door. NVIDIA's hospital, the corridor east of the reception: three rooms (A, B, C from
+# the south) with a door each in the corridor's east wall. The static doors are switched off
+# (scenes/hospital_doors.usda) and a hinged door with a lever handle stands in each opening (scenes/assets/
+# door_hinged.usda, from the hospital's own SM_Door_01). Every episode one of them is painted blue, the other two in
+# the other colours, at random. The robot starts in the hall facing the three doors; "go to the blue door and
+# open it": DualVLN walks towards the blue one, Nav2 parks in front of it, MoveIt grasps the lever and turns it down
+# (the latch lets go), the arm pushes the door open along its arc while the robot follows, turns the lever back up
+# and lets go, and the robot drives into the room. World frame of hospital.usd: x east, y north, z up; metres.
+name: hospital_doors
+layout: doors
+task: RobotLab-Isaac-Door-Hospital-Unitree-B2W-Z1-Gripper-v0
+environment_usd: /workspace/scenes/hospital_doors.usda
+door_asset: /workspace/scenes/assets/door_hinged.usda
+nav2_map: hospital_doors
+nav2_area: [3.0, 27.5, -4.5, 32.0]      # x0, x1, y0, y1 of the Nav2 map: the hall west to the reception and the
+                                        # whole corridor north -- a walk that wanders off (DualVLN went up the
+                                        # corridor to y 15.5 once, west to x 6 another time) can still be brought back
+nav2_staging: 2.0                       # Nav2's staging pose this far before the docking point
+nav2_obstacle_range: 3.5                # the open hall's lidar floor returns (see hospital_hall.yaml)
+nav2_global_lidar: false
+
+robot:
+  spawn: [12.5, 6.2]
+  live_start: [12.5, 6.2, 10]           # in the hall, ~8-10 m from the doors and facing them: all three in view
+                                        # (north of y ~7 the corridor's west wall hides door c). Closer, 5.5 m
+                                        # away, DualVLN turned away from the blue door in view and walked off in
+                                        # 5 of 6 starts -- the doors filling the view; from further it found it
+  demo_starts: [[12.5, 6.2, 10], [12.2, 5.8, 12], [12.9, 6.6, 6]]
+  random_start: [12.0, 13.0, 5.5, 6.8, 5, 15]   # x0, x1, y0, y1, heading range (deg)
+
+doors:                                  # the asset's origin in each opening: the leaf's corridor face (x), its hinge
+  a:                                    # edge (y, north end of the opening), the floor; all three hinged on the north
+    label: left door                    # and opening east, into the room
+    origin: [20.764, 5.3085, 0.0102]
+    room: [20.9, 26.8, 3.0, 6.4]        # x0, x1, y0, y1: the robot is in when its centre is past x0 + 0.6 in here
+  b:
+    label: middle door
+    origin: [20.764, 9.0085, 0.0102]
+    room: [20.9, 26.8, 6.7, 10.08]
+  c:
+    label: right door
+    origin: [20.764, 12.7085, 0.0102]
+    room: [20.9, 26.8, 10.4, 13.8]
+
+door:                                   # what all doors share (the asset's frame: x through the door, y along it)
+  leaf: [0.0, 0.046, -1.236, 0.0]       # x0, x1, y0, y1 of the leaf in the asset's frame
+  hinge: [0.0456, 0.0]                  # the hinge axis (vertical), asset frame
+  spindle: [0.0228, -1.158, 1.0288]     # the handle's axis (along x), asset frame
+  grip: [-0.0875, -1.00, 1.031]         # where the jaws close on the corridor-side lever's bar (3.5 x 3.8 cm), asset frame
+  handle_press: 40                      # deg the robot turns the lever down
+  latch_release: 25                     # deg: pressed at least this far, the latch lets go (virtual latch)
+  hinge_damping: 20.0                   # N*m*s/rad: the door swings slowly
+  latch_stiffness: 20000.0              # N*m/rad on the hinge while latched (held shut)
+  handle_stiffness: 3.0                 # N*m/rad: the lever's return spring...
+  handle_preload: 0.1                   # ...aimed 0.1 rad past its rest stop, so it rests level against it (the 0.2 kg
+                                        # lever's weight, 0.18 N*m, otherwise droops it): pressed 40 deg ~2.4 N*m, 15 N
+  handle_damping: 0.1
+  colors:                               # ColorAlbedo of the door's own material (it paints most of the leaf)
+    blue:   [0.02, 0.09, 0.70]
+    white:  [0.72, 0.71, 0.66]
+    yellow: [0.80, 0.58, 0.06]
+  target_color: blue                    # the colour the task names; the others go to the other doors
+  walk: "Walk to the blue door and stop in front of it."
+
+dock:                                   # where the robot parks to open a door, from the door's origin
+  back: 0.70                            # robot centre this far before the leaf's corridor face (heading +x, east)
+  side: -0.80                           # ... and this far along y from the hinge edge (towards the handle)
+
+obstacles:                              # floor footprints (x0, x1, y0, y1) for the scripted fallback drive and starts
+  doors_wall:   [20.76, 20.85, 2.85, 14.0]
+  hall_west:    [14.05, 14.16, -2.85, 4.15]
+  gurney:       [14.04, 16.28, -4.4, -2.55]
+  supply_cart:  [14.3, 15.14, -2.46, -2.01]
+  trashcan:     [20.34, 20.64, 0.85, 1.15]
+  side_table:   [16.08, 17.17, 9.34, 10.16]
+  corridor_w:   [17.17, 17.26, 10.25, 30.0]
+  south_wall:   [14.0, 27.0, -4.5, -4.3]
+
+camera:                                 # fetch_box.py --cam scene / scene_follow
+  fixed: {eye: [14.6, 4.0, 2.8], lookat: [20.5, 8.4, 0.9]}      # the hall and the three doors
+  follow: {eye: [-2.0, 1.7, 1.7], lookat: [0.4, -0.4, 0.6]}     # north-west of the robot: in the open hall at the
+                                                                # start and in the corridor at the doors (south-west
+                                                                # it was inside the walls of the rooms there)

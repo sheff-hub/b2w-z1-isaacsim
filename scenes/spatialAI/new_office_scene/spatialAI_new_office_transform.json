@@ -1,0 +1,159 @@
+{
+  "inputs": {
+    "splat": "new_office.ply",
+    "mesh": "new_office_mesh_simp.usdc"
+  },
+  "mesh_object_transform_baked": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      -1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "mesh_to_splat": {
+    "rotation": [
+      [
+        1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        1
+      ],
+      [
+        0,
+        -1,
+        0
+      ]
+    ],
+    "median_gap_cm": 1.64,
+    "icp_residual": {
+      "scale": 1.0002,
+      "deg": 0.007,
+      "mm": 0.39
+    }
+  },
+  "up_check": {
+    "lower_half_m2": 8.6,
+    "upper_half_m2": 21.9,
+    "heuristic_overridden_after_preview": true
+  },
+  "splat_vs_mesh_cm": {
+    "median": 1.33,
+    "p90": 3.82
+  },
+  "stage_frame": "Z-up, metres, floor at z=0, walls along X/Y, origin at the most open floor spot",
+  "splat_to_stage": [
+    [
+      0.054515,
+      -0.003603,
+      0.998506,
+      -2.102755
+    ],
+    [
+      0.998513,
+      0.000578,
+      -0.054513,
+      -0.76672
+    ],
+    [
+      -0.000381,
+      0.999993,
+      0.003629,
+      1.455418
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "mesh_to_stage": [
+    [
+      0.054515,
+      -0.998506,
+      -0.003603,
+      -2.102755
+    ],
+    [
+      0.998513,
+      0.054513,
+      0.000578,
+      -0.76672
+    ],
+    [
+      -0.000381,
+      -0.003629,
+      0.999993,
+      1.455418
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "matrix_convention": "column vectors: p_stage = M @ [p, 1]",
+  "floor": {
+    "tilt_deg": 0.209,
+    "fit_rms_cm": 0.71,
+    "inlier_area_m2": 130.5
+  },
+  "walls_turned_by_deg": 86.88,
+  "origin": {
+    "most_open_spot_clearance_m": 1.6,
+    "spatialai_origin_in_stage": [
+      -2.103,
+      -0.767,
+      1.455
+    ]
+  },
+  "room": {
+    "footprint_m2": 271.7,
+    "floor_seen_m2": 172.4,
+    "box_xy": [
+      [
+        -20.03,
+        -4.98
+      ],
+      [
+        9.73,
+        14.08
+      ]
+    ],
+    "ceiling_m": 2.82
+  },
+  "floor_pits": [],
+  "splat": {
+    "gaussians": 8751250,
+    "dropped": 40,
+    "opacity_clamped": 4194964
+  },
+  "outputs": {
+    "stage": "spatialAI_new_office.usdz",
+    "check": "spatialAI_new_office_check.usda"
+  }
+}

@@ -9,8 +9,10 @@
     python3 run.py train --task <gym id>         RL training (isaac/run_train.sh)
     python3 run.py script <path> [args]          any script of this repository in the Isaac Lab container
     python3 run.py dataset <raw run> [...] --out <name>    raw recordings -> LeRobot v2.1 (tools/raw_to_lerobot.py)
-    python3 run.py reconstruct <scene>           phone photos -> USD scene (reconstruction/)
+    python3 run.py reconstruct <scene>           phone photos -> photoreal USD scene, no mesh (reconstruction_no_mesh/)
+    python3 run.py reconstruct-mesh <recording>  iPhone LiDAR recording(s) -> scene + collider (reconstruction_with_mesh/)
     python3 run.py nav2 start|stop [--scene S]   the Nav2 container with the scene's map
+    python3 run.py moveit start|stop             MoveIt (plans the arm's motions for the pick)
     python3 run.py vln start|stop                the DualVLN server
     python3 run.py scenes                        the scene files
     python3 run.py check                         what is installed (./setup.sh --check)
@@ -78,8 +80,21 @@ def nav2_up(scene_name: str, cfg: dict, restart=False):
     if container_running(cfg["NAV2_CONTAINER"]) and same_map and not restart:
         print(f"nav2 already running with map {sc['SCENE_NAV2_MAP']}")
         return
-    sh([ROOT / "nav2/run_nav2.sh"], env={"NAV2_MAP": sc["SCENE_NAV2_MAP"]})
+    sh([ROOT / "nav2/run_nav2.sh"], env={"NAV2_MAP": sc["SCENE_NAV2_MAP"], "NAV2_STAGING": sc["SCENE_NAV2_STAGING"],
+                                         "NAV2_OBSTACLE_RANGE": sc["SCENE_NAV2_OBSTACLE_RANGE"],
+                                         "NAV2_GLOBAL_LIDAR": sc["SCENE_NAV2_GLOBAL_LIDAR"]})
     time.sleep(5)
+
+
+def moveit_up(cfg: dict):
+    url = f"http://127.0.0.1:{cfg['MOVEIT_PORT']}/health"
+    try:
+        urllib.request.urlopen(url, timeout=2)
+        print("MoveIt is up")
+        return
+    except Exception:
+        pass
+    sh([ROOT / "moveit/run_moveit.sh"])
 
 
 def vln_server_up(cfg: dict, quant=None):
@@ -114,19 +129,25 @@ def cmd_fetch(a, extra):
     sc = scene(a.scene)
     tag = a.name or time.strftime("%m%d-%H%M%S")
     out_dir = f"/workspace/renders/fetch/{tag}"
-    args = ["project/fetch_box.py", "--device", "cpu", "--loco", a.loco, "--task", sc["SCENE_TASK"],
+    if a.arm == "moveit":
+        moveit_up(cfg)
+    args = ["project/fetch_box.py", "--device", "cpu", "--loco", a.loco, "--arm", a.arm,
+            "--moveit_server", f"http://127.0.0.1:{cfg['MOVEIT_PORT']}", "--task", sc["SCENE_TASK"],
             "--episodes", str(a.episodes), "--seed", str(a.seed), "--out", f"{out_dir}/results.json",
             "--video_dir", out_dir, "--vln_out", f"{out_dir}/vln"]
-    if sc["SCENE_LAYOUT"] == "multi_table":
+    if sc["SCENE_LAYOUT"] in ("multi_table", "shelf", "doors"):  # the box (shelf: its colour; doors: the door) per episode
         args += ["--target", a.target, "--task_variants"]
     if not a.no_nav2:
-        nav2_up(a.scene, cfg)
-        args += ["--nav2"]
+        nav2_up(a.scene, cfg, restart=True)  # a fresh Nav2 per run: one left from a stopped run took > 2 min
+        args += ["--nav2"]                   # to become active with the new simulator's clock
     if not a.no_vln:
         vln_server_up(cfg)
-        # multi-table scenes: the sentence is made per episode from the target; one table: say its name
-        first = next(iter(sc["data"]["tables"]))
-        args += ["--vln", f"Walk to the {first} table and stop in front of it.", "--vln_server",
+        # multi-table and shelf scenes: the sentence is made per episode from the target; one table: say its name
+        d = sc["data"]  # (shelf scenes: fetch_box.py makes the sentence per episode from the named shelf)
+        sh0 = next(iter(d["shelves"].values())) if "shelves" in d else d.get("door", {})
+        goal = f"{next(iter(d['shelves']))} shelf" if "shelves" in d else (d["shelf"]["name"] if "shelf" in d else
+                                                                          f"{next(iter(d.get('tables', {'the': 0})))} table")
+        args += ["--vln", sh0.get("walk") or f"Walk to the {goal} and stop in front of it.", "--vln_server",
                  f"http://127.0.0.1:{cfg['DUALVLN_PORT']}"]
         if not a.no_nav2:
             args += ["--vln_follower", "follow"]
@@ -138,11 +159,13 @@ def cmd_fetch(a, extra):
     if rs and not a.fixed_start:
         args += ["--random_start=" + ",".join(f"{v:g}" for v in rs)]
     else:
-        args += ["--starts", sc["SCENE_START"]]
+        args += ["--starts=" + sc["SCENE_START"]]  # "=": a start with a negative x is no option
     if a.record:
         args += ["--record", f"/workspace/datasets/raw/{a.record}"]
     if a.video:
         args += ["--video", "--video_episodes", a.video]
+        if "camera" in sc["data"] and not any(e.startswith("--cam") for e in extra):
+            args += ["--cam", "scene_follow"]  # the scene file's view that keeps the robot in the picture
     env = {"FETCH_SCENE": sc["SCENE_FILE_CONTAINER"], "CONTAINER_NAME": a.container or f"isaac-fetch-{tag}"}
     print(f"results, videos and DualVLN logs: renders/fetch/{tag}/" + (f"; recording: datasets/raw/{a.record}/" if a.record else ""))
     sh([ROOT / "isaac/run_script.sh", *args, *extra], env=env)
@@ -172,7 +195,11 @@ def cmd_dataset(a, extra):
 
 
 def cmd_reconstruct(a, extra):
-    sh([sys.executable, ROOT / "reconstruction/reconstruct.py", *([a.scene] if a.scene else []), *extra])
+    sh([sys.executable, ROOT / "reconstruction_no_mesh/reconstruct.py", *([a.scene] if a.scene else []), *extra])
+
+
+def cmd_reconstruct_mesh(a, extra):
+    sh([sys.executable, ROOT / "reconstruction_with_mesh/reconstruct.py", *([a.recording] if a.recording else []), *extra])
 
 
 def cmd_nav2(a, extra):
@@ -180,6 +207,13 @@ def cmd_nav2(a, extra):
         sh([ROOT / "nav2/run_nav2.sh", "stop"])
     else:
         nav2_up(a.scene, config(), restart=True)
+
+
+def cmd_moveit(a, extra):
+    if a.action == "stop":
+        sh([ROOT / "moveit/run_moveit.sh", "stop"])
+    else:
+        sh([ROOT / "moveit/run_moveit.sh"])
 
 
 def cmd_vln(a, extra):
@@ -195,7 +229,8 @@ def cmd_scenes(a, extra):
     for p in sorted((ROOT / "scenes").glob("*.yaml")):
         s = yaml.safe_load(p.read_text())
         print(f"{p.stem:26s} {s.get('layout', ''):12s} tables: {', '.join(s.get('tables', {}))}   map: {s.get('nav2_map')}")
-    print("reconstruction scenes (photos -> USD):  python3 reconstruction/reconstruct.py --list-scenes")
+    print("reconstruction scenes (photos -> USD):           python3 run.py reconstruct --list-scenes")
+    print("reconstruction scenes (LiDAR recording -> USD):  python3 run.py reconstruct-mesh --list-scenes")
 
 
 def cmd_check(a, extra):
@@ -209,13 +244,17 @@ def main():
     f.add_argument("--scene", default="warehouse_three_tables", help="scenes/<name>.yaml (default: the three tables)")
     f.add_argument("--episodes", type=int, default=1)
     f.add_argument("--seed", type=int, default=0)
-    f.add_argument("--target", default="auto", help="multi-table scenes: table/box, e.g. green/red, or auto")
+    f.add_argument("--target", default="auto", help="multi-table scenes: table/box, e.g. green/red; shelf scenes: a colour "
+                   "(green) or a list taken in turn per episode (green,yellow,red); door scenes: the door painted the "
+                   "target colour (a, b, c, or a list); or auto (random)")
     f.add_argument("--no-vln", action="store_true", help="no DualVLN walk: Nav2 (or the script) drives from the start")
     f.add_argument("--no-nav2", action="store_true", help="the scripted route instead of Nav2")
     f.add_argument("--deliver", action="store_true", help="always carry the box to the drop zone")
     f.add_argument("--deliver_frac", type=float, default=0.5, help="else: deliver in this share of episodes (0.5)")
     f.add_argument("--fixed-start", action="store_true", help="start at the scene's live_start, not a random pose")
     f.add_argument("--loco", default="eth", choices=("eth", "ours"), help="walking policy (eth: ETH's + our fine-tune)")
+    f.add_argument("--arm", default="moveit", choices=("moveit", "ik"),
+                   help="moveit: MoveIt plans the pick (started automatically); ik: the scripted IK pick")
     f.add_argument("--record", default="", help="record every episode to datasets/raw/<name>")
     f.add_argument("--video", default="", help="film these episodes, e.g. 0,1")
     f.add_argument("--name", default="", help="output folder name under renders/fetch/ (default: a time stamp)")
@@ -234,13 +273,22 @@ def main():
     ds.add_argument("raw", nargs="+", help="raw runs under datasets/raw/ (or absolute paths)")
     ds.add_argument("--out", required=True, help="name under datasets/lerobot/")
     ds.set_defaults(fn=cmd_dataset)
-    rc = sub.add_parser("reconstruct", help="phone photos -> USD scene (reconstruction/reconstruct.py)")
-    rc.add_argument("scene", nargs="?")
+    rc = sub.add_parser("reconstruct", help="phone photos -> photoreal USD scene, no mesh (reconstruction_no_mesh/)")
+    rc.add_argument("scene", nargs="?", help="a scene file or a photo folder in <nurec>/mine/dataset_for_no_mesh")
     rc.set_defaults(fn=cmd_reconstruct)
+    rm = sub.add_parser("reconstruct-mesh",
+                        help="Record3D LiDAR recording -> USD scene + collision mesh (reconstruction_with_mesh/)")
+    rm.add_argument("recording", nargs="?", help="a scene file, or a recording (or a folder of passes) in "
+                                                 "<nurec>/mine/dataset_for_with_mesh; more folders, --test-clip and the "
+                                                 "other options of reconstruct.py are passed on")
+    rm.set_defaults(fn=cmd_reconstruct_mesh)
     nv = sub.add_parser("nav2", help="start/stop Nav2 with a scene's map")
     nv.add_argument("action", choices=("start", "stop"))
     nv.add_argument("--scene", default="warehouse_three_tables")
     nv.set_defaults(fn=cmd_nav2)
+    mv = sub.add_parser("moveit", help="start/stop MoveIt (move_group + the HTTP bridge)")
+    mv.add_argument("action", choices=("start", "stop"))
+    mv.set_defaults(fn=cmd_moveit)
     vl = sub.add_parser("vln", help="start/stop the DualVLN server")
     vl.add_argument("action", choices=("start", "stop"))
     vl.add_argument("--quant", default=None, choices=("none", "8bit"))

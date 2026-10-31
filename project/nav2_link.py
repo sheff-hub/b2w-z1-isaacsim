@@ -36,7 +36,8 @@ rclpy = ActionClient = None
 def _load_ros():
     global rclpy, ActionClient, DurabilityPolicy, QoSProfile, ReliabilityPolicy, Time, PoseStamped, \
         TransformStamped, Twist, ComputePathToPose, NavigateToPose, Odometry, Path, Clock, LaserScan, Trigger, TFMessage, \
-        PointCloud2, PointField, DockRobot, NavigateThroughPoses, FollowPath
+        PointCloud2, PointField, DockRobot, NavigateThroughPoses, FollowPath, ClearEntireCostmap, GetState, \
+        ManageLifecycleNodes
     if rclpy is not None:
         return
     from isaacsim.core.utils.extensions import enable_extension
@@ -47,6 +48,8 @@ def _load_ros():
     from builtin_interfaces.msg import Time
     from geometry_msgs.msg import PoseStamped, TransformStamped, Twist
     from nav2_msgs.action import ComputePathToPose, DockRobot, FollowPath, NavigateThroughPoses, NavigateToPose
+    from nav2_msgs.srv import ClearEntireCostmap, ManageLifecycleNodes
+    from lifecycle_msgs.srv import GetState
     from nav_msgs.msg import Odometry, Path
     from rosgraph_msgs.msg import Clock
     from sensor_msgs.msg import LaserScan, PointCloud2, PointField
@@ -213,6 +216,10 @@ class Nav2Link:
         self.dock_client = ActionClient(n, DockRobot, "dock_robot")
         self.through_client = ActionClient(n, NavigateThroughPoses, "navigate_through_poses")
         self.follow_client = ActionClient(n, FollowPath, "follow_path")  # the controller server, no planner
+        self.clear_srvs = {k: n.create_client(ClearEntireCostmap, f"/{k}_costmap/clear_entirely_{k}_costmap")
+                           for k in ("local", "global")}
+        self.controller_state = n.create_client(GetState, "/controller_server/get_state")
+        self.manage = n.create_client(ManageLifecycleNodes, "/lifecycle_manager_navigation/manage_nodes")
         self._stream = []  # futures of the goals sent by stream_* (the newest replaces the previous one)
         self.last_scan = -1.0
         self.goal_handle, self.result = None, None
@@ -326,22 +333,46 @@ class Nav2Link:
         _, _, p.pose.orientation.z, p.pose.orientation.w = _yaw_quat(yaw)
         return p
 
+    def clear_costmaps(self, which=("local", "global")):
+        """Empty the costmaps' obstacle layers (fire and forget: the reply arrives with the next spins). In the open
+        hall the lidar's few floor returns while the body settles after a reset stay marked -- nothing beyond them
+        is in range to clear them by ray tracing -- and the controller then saw a "collision ahead" for a minute."""
+        sent = 0
+        for k in which:
+            if self.clear_srvs[k].service_is_ready():
+                self.clear_srvs[k].call_async(ClearEntireCostmap.Request())
+                sent += 1
+        return sent
+
     def wait_ready(self, timeout=60.0, tick=None):
         """Wait until Nav2's lifecycle manager reports every node ACTIVE (the action servers exist
         before that: the first plan request, 1 s after the costmaps started, failed). Nav2 only
         finishes activating once the simulator publishes TF, so `tick` keeps it publishing."""
-        t0, fut, last = time.time(), None, 0.0
+        t0, fut, last, managed, restart = time.time(), None, 0.0, False, []
         while time.time() - t0 < timeout:
             if tick is not None:
                 tick()
             rclpy.spin_once(self.node, timeout_sec=0.01)
+            # half the time gone: bring the stack up again. A Nav2 started while the simulator was still booting (no
+            # TF yet) once timed out activating its controller and never retried -- 2 x 120 s, then no Nav2 at all
+            if not restart and time.time() - t0 > timeout / 2 and self.manage.service_is_ready():
+                restart.append(self.manage.call_async(ManageLifecycleNodes.Request(command=3)))  # RESET
+            elif len(restart) == 1 and restart[0].done():
+                restart.append(self.manage.call_async(ManageLifecycleNodes.Request(command=0)))  # STARTUP
+                fut, managed = None, False
             if fut is not None and fut.done():
-                if fut.result() is not None and fut.result().success and self.nav_client.server_is_ready() \
-                        and self.path_client.server_is_ready():
-                    return True
-                fut = None
-            if fut is None and time.time() - last > 0.5 and self.active_srv.service_is_ready():
-                fut, last = self.active_srv.call_async(Trigger.Request()), time.time()
+                res = fut.result()
+                if not managed:  # the lifecycle manager: every node active
+                    managed = res is not None and res.success and self.nav_client.server_is_ready() \
+                        and self.path_client.server_is_ready()
+                elif res is not None and res.current_state.id == 3:  # and the controller server itself ACTIVE: just
+                    return True  # after a restart its activation once timed out while the manager reported active,
+                fut = None       # and it rejected every FollowPath of DualVLN's walk (150 of 150)
+            if fut is None and time.time() - last > 0.5:
+                if not managed and self.active_srv.service_is_ready():
+                    fut, last = self.active_srv.call_async(Trigger.Request()), time.time()
+                elif managed and self.controller_state.service_is_ready():
+                    fut, last = self.controller_state.call_async(GetState.Request()), time.time()
         return False
 
     def plan_length(self, start, goal, tick=None, timeout=10.0):

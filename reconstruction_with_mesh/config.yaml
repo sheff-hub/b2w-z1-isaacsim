@@ -1,0 +1,151 @@
+# ============================================================================
+#  Reconstruction WITH MESH config: DEFAULTS.  Edit this file, not the code.
+#
+#  Settings are layered, later wins:
+#    1. this file            defaults (machine paths, GPU and Isaac Sim from ../config.yaml)
+#    2. scenes/<name>.yaml   one short file per scene: its recording, its name, and
+#                            the settings that scene needs (see scenes/README.md)
+#    3. the command line     e.g.  python3 reconstruct.py my_flat --caps 1000000,2000000
+#
+#  Machine-specific paths, the GPU and the Isaac Sim image come from the repository's config.yaml (null below).
+# ============================================================================
+
+# --- What to reconstruct (normally set by a scene file or the command line) ------
+recording:
+  # Record3D recording folder ("EXR + JPG" export). A bare name is looked up under paths.recordings_root;
+  # or an absolute path. The folder may contain EXR_RGBD/ (as the app exports it) or be EXR_RGBD itself.
+  # A folder holding several exports = several passes of the same place (in name order; a subfolder whose name
+  # starts with "test" is the test clip).
+  name: null
+  # Several passes of the same place (e.g. the phone at three heights), merged into one scene. The first is the
+  # reference frame. Overrides `name`.
+  passes: null
+  # A recording of the same place that is never trained on: the splat is scored on it (stage test_eval).
+  test: null
+  # Scene name for all outputs. null -> the (first) recording folder's name
+  scene_name: null
+
+# --- Where things live ------------------------------------------------------------
+# null = taken from the repository's config.yaml (one file per machine for the whole project):
+#   recordings_root <- <paths.nurec>/mine/dataset_for_with_mesh    scenes_root <- <paths.nurec>/mine/withmesh
+#   threedgrut      <- paths.threedgrut
+paths:
+  recordings_root: null    # put Record3D exports here, one folder each
+  scenes_root:     null    # scenes are built here, one folder each
+  threedgrut:      null    # 3DGRUT checkout with its .venv (see ../reconstruction_no_mesh/README.md)
+  cuda_home:       /usr    # where nvcc lives (3DGRUT compiles kernels at run time)
+  tools_python:    .venv/bin/python   # this folder's tools environment (setup_tools_env.sh)
+
+# --- Hardware ----------------------------------------------------------------------
+gpu:
+  # Pin by UUID so we never take a GPU that belongs to someone else (null: gpu.uuid of the repository's
+  # config.yaml). `nvidia-smi --query-gpu=uuid,name --format=csv` lists them; "all" only on a machine you own.
+  uuid: null
+  # The card is shared. Before training and evaluation, wait until this much is free (the log then lists who
+  # holds the rest), but at most wait_min minutes, then try anyway.
+  min_free_gb: 14
+  wait_min: 30
+
+# --- Isaac Sim check ----------------------------------------------------------------
+isaac:
+  check: true            # render + collider overlay + ball drop in Isaac Sim (Docker)
+  docker_image: null     # null: images.isaac_sim of the repository's config.yaml (nvcr.io/nvidia/isaac-sim:5.1.0)
+  cache_root: null       # null: paths.isaac_cache (shader/asset caches shared with the other Isaac containers)
+  view_fractions: [0.08, 0.25, 0.42, 0.58, 0.75, 0.92]   # where along the walk the six check views are taken
+
+# --- Recording checks -------------------------------------------------------------
+validate:
+  min_seconds: 20          # refuse shorter recordings
+  min_path_m: 3.0          # warn below this: no parallax, poor splat
+
+# --- Prep: poses, images, depth -----------------------------------------------------
+prep:
+  # Images: a new slot every image_step_m of movement or image_step_deg of turning, the sharpest frame of each.
+  # Standing still or walking slowly adds nothing. 0.06 / 3 gave 2,905 images on the 407 s walk of 22 Oct.
+  image_step_m: 0.06
+  image_step_deg: 3.0
+  min_sharpness: 0.25      # drop a slot whose best frame is < this x the local median sharpness (blurred by a fast turn)
+  keep_every: null         # set N to use the sharpest of every N frames instead (the first version's rule)
+  depth_step_m: 0.015      # LiDAR frames for the collider: one per 1.5 cm / 1 deg of motion (9.5k on 22 Oct)
+  depth_step_deg: 1.0
+  # The floor is the densest LiDAR layer more than floor_factor x the camera's own height below it (so a phone at
+  # 0.5 m and one at 1.6 m both find it, and tables are not taken for it). floor_below: a fixed window instead (m).
+  floor_factor: 0.6
+  floor_below: null
+
+# --- Several passes: bringing them into one frame (colmap stage, tools/align_passes.py) --------
+align:
+  images_per_pass: 150     # images of each pass matched with those of the others (one per step_m / step_deg)
+  step_m: 0.75
+  step_deg: 20
+  min_inliers: 30          # verified matches for a pair to vote
+  min_votes: 5             # agreeing votes needed to place a pass
+
+# --- COLMAP: features and pose-guided matching ----------------------------------------
+colmap:
+  docker_image: colmap/colmap:latest
+  pairs:                   # who is matched with whom (from the phone poses; see tools/pairs.py)
+    neighbours: 8          # next N images in time
+    radius_m: 4.0          # spatial partners: cameras within this distance ...
+    angle_deg: 75          # ... looking within this angle of each other
+    near: 30               # where there are more: the 30 closest ...
+    far: 30                # ... and the 30 closest that are > far_gap_s apart in time (loop closures)
+    far_gap_s: 10
+
+loop_close:
+  min_gap_s: 10            # a loop edge joins images at least this far apart in time
+  min_inliers: 40          # verified matches needed for a loop edge
+
+# --- Collider ---------------------------------------------------------------------------
+mesh:
+  voxel_m: 0.03            # TSDF voxel
+  trunc_m: 0.09            # TSDF truncation (3 voxels)
+  max_depth_m: 4.5         # LiDAR beyond this is noisy
+  edge: 0.04               # drop depth pixels with a > 4% jump to a neighbour (flying pixels)
+  triangles: 1200000       # decimated collider (PhysX cooks 1.2M in seconds)
+  fill_floor_holes: true   # patch LiDAR gaps in the floor that are enclosed by floor (tools/fill_floor.py)
+  hole_max_area_m2: 2.0    # larger enclosed regions stay open (e.g. the block a ring corridor goes round)
+  keep_fused: false        # keep the full-resolution mesh too (mesh/lidar_fused.ply, ~5M triangles)
+
+# --- Splat training (3DGRUT) ---------------------------------------------------------------
+train:
+  config_name: apps/colmap_3dgut_mcmc.yaml
+  # auto: ~iterations_per_image views of every training image (30k steps were ~11 per image on 22 Oct), clipped;
+  # 3DGRUT's schedules (MCMC growth, learning-rate decay) are stretched to the length. Or a number.
+  iterations: auto
+  iterations_per_image: 11
+  iterations_min: 30000
+  iterations_max: 90000
+  downsample_factor: 1     # Record3D images are 720 x 960: train at full size
+  caps: null               # list of gaussian caps to compare (best is exported), or null for one run:
+  cap_ratio: 4.0           #   cap = cap_ratio x bundle-adjustment points, clipped to [cap_min, cap_max]
+  cap_min: 500000
+  cap_max: 2000000         # follows the size of the place, not the number of passes: 4M on the three-height
+                           # office (27 Oct) fogged its corridors; the 22 Oct walk used 1.9M of its 2M
+  init_share: 0.5          # 3DGRUT keeps every starting point, so a bundle-adjustment cloud above this x cap
+                           # is randomly subsampled to it (MCMC adds the rest where the photos need them)
+  # Large-scene regularisation. 3DGRUT's defaults (0.01 / 0.01) made MCMC collapse on a 40 x 30 m walk (PSNR 17).
+  overrides:
+    - loss.lambda_opacity=0.0001
+    - loss.lambda_scale=0.005
+    # MCMC jitters low-opacity gaussians by noise_lr x the position learning rate, which grows with the scene:
+    # 3DGRUT's large-scene config (cusfm_3dgut_mcmc.yaml) uses 5000 instead of 5e5. Mid pass of the office,
+    # 28 Oct: 26.07 -> 26.34 dB, SSIM and LPIPS better too.
+    - strategy.perturb.noise_lr=5000
+  keep_intermediate: false # delete the 7k-step checkpoint (~1.3 GB at 2M gaussians)
+
+# --- Test clip (stage test_eval) --------------------------------------------------------------
+test:
+  image_step_m: 0.25       # test images: one per 25 cm / 8 deg of the clip, at most max_images
+  image_step_deg: 8
+  max_images: 200
+  keep_database: false     # its COLMAP database (a copy of the scene's, ~2 GB) is deleted after localising
+
+# --- Export ---------------------------------------------------------------------------------
+export:
+  prune_radius_factor: 50.0   # drop stray gaussians farther than this x scene extent (float16 overflow)
+  reorient: true              # fixes the stock export's 90-degree tilt; leave on
+
+# --- Stage ------------------------------------------------------------------------------------
+stage:
+  friction: 1.0            # static = dynamic friction of the collider in <name>_robot.usda

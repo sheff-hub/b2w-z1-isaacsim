@@ -15,11 +15,12 @@ paths:
   isaaclab: repos/IsaacLab          # Isaac Lab 2.3.2
   robot_lab: repos/robot_lab        # robot_lab 2.3.2 + our tasks from training/robot_lab_overlay
   internnav: repos/InternNav        # DualVLN code (only for language navigation)
-  threedgrut: repos/3dgrut          # 3DGRUT with its own .venv (only for reconstruction/)
+  threedgrut: repos/3dgrut          # 3DGRUT with its own .venv (only for reconstruction_*_mesh/)
   # Isaac Sim's shader and asset cache (several GB; first start compiles shaders into it).
   isaac_cache: ~/docker/isaac-sim
   isaac_cache_6: ~/docker/isaac-sim-6.0
-  # NuRec scene assets: nvidia/ (NVIDIA's reference scenes), mine/ (our reconstructions, see reconstruction/).
+  # NuRec scene assets: nvidia/ (NVIDIA's reference scenes), mine/ (our reconstructions: their inputs in
+  # mine/dataset_for_no_mesh/ and mine/dataset_for_with_mesh/, see reconstruction_no_mesh/ and reconstruction_with_mesh/).
   nurec: scenes/nurec
   # Hugging Face hub cache (the folder with models--*/ inside) for the DualVLN weights
   # (InternRobotics/InternVLA-N1-DualVLN, ~16 GB); setup.sh --vln downloads them into it.
@@ -41,12 +42,18 @@ images:
   isaac_lab: isaac-lab:2.3.2        # built by setup.sh from isaac/docker/Dockerfile.isaaclab
   nav2: b2w-nav2:jazzy              # built by setup.sh from nav2/Dockerfile
   dualvln: dualvln-server:latest    # built by setup.sh --vln from vln/Dockerfile.dualvln
+  moveit: b2w-moveit:jazzy          # built by setup.sh from moveit/Dockerfile
 
 containers:
   # Container names. Change them if two people run this on one machine.
   nav2: nav2
   dualvln: dualvln-server
   live: isaac-live
+  moveit: moveit
+
+moveit:
+  port: 5810                        # the MoveIt bridge (moveit/moveit_server.py)
+  domain_id: 47                     # its own ROS domain, local to this machine (not Nav2's)
 
 dualvln:
   port: 5801

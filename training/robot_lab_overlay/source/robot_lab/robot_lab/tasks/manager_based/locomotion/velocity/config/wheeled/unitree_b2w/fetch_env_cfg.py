@@ -358,3 +358,167 @@ class UnitreeB2WZ1GripperFetch3EnvCfg(UnitreeB2WZ1GripperFetchEnvCfg):
             [p for p in HIP_PARTNERS if "/Robot/" in p or p.endswith("/World/ground")]
         s.hip_contacts = s.hip_contacts.replace(filter_prim_paths_expr=partners)
         self.events.reset_box = EventTerm(func=place_boxes_shuffled, mode="reset", params={})
+
+
+# ------------------------------------------------------------------ shelves, and tables to put the box on
+# The hospital reception (scenes/hospital_reception.yaml: one shelf, one table; scenes/hospital_two_shelves.yaml:
+# two of each; layout "shelf"): the environment's own furniture -- medicine shelves and side tables with static
+# colliders -- so the scene adds only the boxes, a red, a yellow and a green one on a tray of every shelf.
+# fetch_box.py takes the named box out of the named shelf and puts it on the named table (all from the scene file).
+# Box size and mass are the fetch boxes' (the gripper and the grasp geometry are tuned for them).
+SCENE_SHELF = load_scene("hospital_reception")
+if "shelves" in SCENE_SHELF:  # name -> shelf / table; what is common to the shelves is in shelf_defaults
+    SHELVES = {k: {**SCENE_SHELF.get("shelf_defaults", {}), **v, "label": v.get("label", f"{k} shelf")}
+               for k, v in SCENE_SHELF["shelves"].items()}
+    TABLES = {k: {**v, "label": v.get("label", f"{k} table")} for k, v in SCENE_SHELF["tables"].items()}
+else:  # the first format: one shelf, one place
+    SHELVES = {"white": {"rect": SCENE_SHELF["obstacles"]["medshelf"], **SCENE_SHELF["shelf"],
+                         "label": SCENE_SHELF["shelf"].get("name", "shelf")}}
+    TABLES = {"wooden": {**SCENE_SHELF["place"], "label": SCENE_SHELF["place"].get("name", "table")}}
+SHELF_BOX_RGB = {k: tuple(v) for k, v in SCENE_SHELF["box"]["colors"].items()}
+SHELF_COLORS = tuple(SHELF_BOX_RGB)
+for _k in ("size", "mass"):
+    assert SCENE_SHELF["box"][_k] == SCENE_ONE["box"][_k], f"scene files differ in box.{_k}: keep them equal"
+
+
+def shelf_box_name(shelf, color):
+    return f"shelfbox_{shelf}_{color}"
+
+
+def shelf_boxes(shelf):
+    """(colour, x, y, top, yaw jitter) of the boxes a shelf holds: one per tray of its `levels` (each colour on its own
+    tray), else one per slot along its tray (the colours shuffled at every reset)."""
+    sh = SHELVES[shelf]
+    if "levels" in sh:
+        return [(c, sh["box_x"], lv["y"], lv["top"], lv.get("yaw_jitter", 0.4)) for c, lv in sh["levels"].items()]
+    return [(c, sh["box_x"], y, sh["top"], 0.4) for y, c in zip(sh["slots_y"], SHELF_COLORS)]
+
+
+def place_boxes_on_shelves(env, env_ids, jitter_x=(-0.02, 0.03), jitter_y=(-0.015, 0.015)):
+    """Reset event: every shelf's boxes (shelf_boxes) with a little position and yaw jitter (jitter_x is depth into the
+    shelf, the yaw range per tray), at rest on their tray (a few mm above it, so they settle)."""
+    import torch
+    for shelf, sh in SHELVES.items():
+        boxes = shelf_boxes(shelf)
+        if "levels" not in sh:  # one colour per slot, in a random order
+            order = torch.randperm(len(boxes)).tolist()
+            boxes = [(boxes[o][0],) + b[1:] for o, b in zip(order, boxes)]
+        for color, bx, by, top, yj in boxes:
+            obj = env.scene[shelf_box_name(shelf, color)]
+            n = len(env_ids)
+            dev = obj.data.root_pos_w.device
+            pos = torch.zeros(n, 3, device=dev)
+            pos[:, 0] = bx - sh["face"] * torch.empty(n, device=dev).uniform_(*jitter_x)
+            pos[:, 1] = by + torch.empty(n, device=dev).uniform_(*jitter_y)
+            pos[:, 2] = top + BOX_SIZE[2] / 2 + 0.002
+            pos += env.scene.env_origins[env_ids]
+            a = torch.empty(n, device=dev).uniform_(-yj, yj)
+            quat = torch.stack([torch.cos(a / 2), torch.zeros_like(a), torch.zeros_like(a), torch.sin(a / 2)], dim=1)
+            obj.write_root_pose_to_sim(torch.cat([pos, quat], dim=1), env_ids=env_ids)
+            obj.write_root_velocity_to_sim(torch.zeros(n, 6, device=dev), env_ids=env_ids)
+
+
+@configclass
+class UnitreeB2WZ1GripperShelfEnvCfg(UnitreeB2WZ1GripperFetchEnvCfg):
+    """The fetch robot in the hospital reception: a red, a yellow and a green box on a tray of every shelf;
+    fetch_box.py picks one (--target shelf/colour/table) and puts it on a table."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        s = self.scene
+        for name in ["table_top"] + [f"table_leg{i}" for i in range(4)] + ["box"]:
+            setattr(s, name, None)
+        s.terrain.usd_path = SCENE_SHELF["environment_usd"]
+        sx, sy = SCENE_SHELF["robot"]["spawn"]
+        s.robot = s.robot.replace(init_state=s.robot.init_state.replace(pos=(sx, sy, s.robot.init_state.pos[2])))
+        for shelf, sh in SHELVES.items():
+            for color, bx, by, top, _ in shelf_boxes(shelf):
+                setattr(s, shelf_box_name(shelf, color), RigidObjectCfg(
+                    prim_path=f"{{ENV_REGEX_NS}}/Box_{shelf}_{color}",
+                    spawn=sim_utils.CuboidCfg(
+                        size=BOX_SIZE,
+                        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+                        mass_props=sim_utils.MassPropertiesCfg(mass=BOX_MASS),
+                        collision_props=sim_utils.CollisionPropertiesCfg(),
+                        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=SHELF_BOX_RGB[color], roughness=0.8),
+                    ),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=(bx, by, top + BOX_SIZE[2] / 2 + 0.002))))
+        partners = [f"{{ENV_REGEX_NS}}/Box_{sh}_{c[0]}" for sh in SHELVES for c in shelf_boxes(sh)] + \
+            [p for p in HIP_PARTNERS if "/Robot/" in p or p.endswith("/World/ground")]
+        s.hip_contacts = s.hip_contacts.replace(filter_prim_paths_expr=partners)
+        self.events.reset_box = EventTerm(func=place_boxes_on_shelves, mode="reset", params={})
+
+
+# ------------------------------------------------------------------ doors: open the blue one
+# The hospital's east corridor (scenes/hospital_doors.yaml, layout "doors"): a hinged door with a lever handle in each
+# of the three openings (scenes/assets/door_hinged.usda, from the hospital's SM_Door_01 by tools/build_door_asset.py),
+# fixed-base articulations with two joints: `hinge` (vertical, opens into the room) and `handle_joint` (the levers'
+# spindle, pressed down negative). The hinge's drive is the latch: stiff (held shut) while latched, free (damping
+# only) once the lever is turned far enough -- fetch_box.py switches it (a virtual latch).
+SCENE_DOORS = load_scene("hospital_doors")
+DOORS = {k: {**v, "label": v.get("label", f"{k} door")} for k, v in SCENE_DOORS["doors"].items()}
+DOOR = SCENE_DOORS["door"]
+
+
+def door_name(k):
+    return f"door_{k}"
+
+
+def _door_cfg(k):
+    from isaaclab.assets import ArticulationCfg
+
+    return ArticulationCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/Door_{k}",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=SCENE_DOORS["door_asset"],
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(max_depenetration_velocity=1.0),
+            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+                fix_root_link=True, enabled_self_collisions=False,
+                solver_position_iteration_count=8, solver_velocity_iteration_count=1),
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=tuple(DOORS[k]["origin"]), rot=(1.0, 0.0, 0.0, 0.0), joint_pos={"hinge": 0.0, "handle_joint": 0.0}),
+        actuators={
+            "hinge": ImplicitActuatorCfg(joint_names_expr=["hinge"], stiffness=DOOR["latch_stiffness"],
+                                         damping=DOOR["hinge_damping"], effort_limit_sim=1.0e4),
+            "handle": ImplicitActuatorCfg(joint_names_expr=["handle_joint"], stiffness=DOOR["handle_stiffness"],
+                                          damping=DOOR["handle_damping"], effort_limit_sim=100.0),
+        },
+    )
+
+
+def reset_doors(env, env_ids):
+    """Reset event: every door shut and latched, its lever at rest."""
+    import torch
+    for k in DOORS:
+        d = env.scene[door_name(k)]
+        n = len(env_ids)
+        q = torch.zeros(n, d.num_joints, device=d.device)
+        d.write_joint_state_to_sim(q, torch.zeros_like(q), env_ids=env_ids)
+        hinge, handle = d.find_joints("hinge")[0], d.find_joints("handle_joint")[0]
+        target = q.clone()
+        target[:, handle[0]] = DOOR.get("handle_preload", 0.0)  # the lever's spring preloaded against its rest stop
+        d.set_joint_position_target(target, env_ids=env_ids)
+        d.write_joint_stiffness_to_sim(torch.full((n, 1), DOOR["latch_stiffness"], device=d.device),
+                                       joint_ids=hinge, env_ids=env_ids)
+
+
+@configclass
+class UnitreeB2WZ1GripperDoorEnvCfg(UnitreeB2WZ1GripperFetchEnvCfg):
+    """The fetch robot in the hospital's east corridor: three hinged doors with lever handles; fetch_box.py walks to
+    the blue one, opens it and drives into the room."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        s = self.scene
+        for name in ["table_top"] + [f"table_leg{i}" for i in range(4)] + ["box"]:
+            setattr(s, name, None)
+        s.terrain.usd_path = SCENE_DOORS["environment_usd"]
+        sx, sy = SCENE_DOORS["robot"]["spawn"]
+        s.robot = s.robot.replace(init_state=s.robot.init_state.replace(pos=(sx, sy, s.robot.init_state.pos[2])))
+        for k in DOORS:
+            setattr(s, door_name(k), _door_cfg(k))
+        partners = [p for p in HIP_PARTNERS if "/Robot/" in p or p.endswith("/World/ground")]
+        s.hip_contacts = s.hip_contacts.replace(filter_prim_paths_expr=partners)
+        self.events.reset_box = EventTerm(func=reset_doors, mode="reset", params={})

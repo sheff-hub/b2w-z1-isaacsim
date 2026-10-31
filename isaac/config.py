@@ -33,9 +33,13 @@ VARS = [
     ("IMAGE_ISAAC_LAB", "images.isaac_lab", False),
     ("IMAGE_NAV2", "images.nav2", False),
     ("IMAGE_DUALVLN", "images.dualvln", False),
+    ("IMAGE_MOVEIT", "images.moveit", False),
     ("NAV2_CONTAINER", "containers.nav2", False),
     ("DUALVLN_CONTAINER", "containers.dualvln", False),
     ("LIVE_CONTAINER", "containers.live", False),
+    ("MOVEIT_CONTAINER", "containers.moveit", False),
+    ("MOVEIT_PORT", "moveit.port", False),
+    ("MOVEIT_DOMAIN_ID", "moveit.domain_id", False),
     ("DUALVLN_PORT", "dualvln.port", False),
     ("DUALVLN_QUANT", "dualvln.quant", False),
 ]

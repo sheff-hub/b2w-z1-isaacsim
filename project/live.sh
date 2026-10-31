@@ -16,9 +16,10 @@
 #                                  click the window first) or watch the test sequence; ETH's controller
 #                                  by default, "ours" for model_2600
 #   ./live.sh stop                 close the simulator
-#   ./live.sh stop all             ... and stop the DualVLN server (frees ~21 GB of GPU memory)
+#   ./live.sh stop all             ... and stop the DualVLN server (frees ~21 GB of GPU memory) and MoveIt
 #   QUANT=8bit ./live.sh vln       the 8-bit model instead of full precision (6 GB less)
 #   LOCO=ours ./live.sh fetch      our old base controller (model_2600) instead of ETH's
+#   ARM=ik ./live.sh pick          the scripted IK pick instead of MoveIt (default ARM=moveit starts MoveIt if needed)
 #   NAV2=1 ./live.sh fetch         Nav2 drives to the pick point instead of the scripted route
 #                                  (fetch / fetchdemo; starts the Nav2 container, nav2/README.md)
 #   NAV2=1 VLN_FOLLOWER=follow ...  Nav2 also drives DualVLN's walk: follow = FollowPath on DualVLN's path,
@@ -26,6 +27,13 @@
 #   SCENE=3 NAV2=1 ./live.sh fetch three tables (SCENE=<name>: any scene file scenes/<name>.yaml), on each a red, yellow and green box:
 #                                  type "go to the green table and pick the red box"; TARGET=green/red for
 #                                  fetchdemo (default auto: random per episode)
+#   SCENE=hospital_reception NAV2=1 ./live.sh fetch   the hospital reception (no DualVLN): type "take the red box
+#                                  from the shelf and put it on the side table"
+#   SCENE=hospital_hall NAV2=1 VLN=1 ./live.sh fetch   the shelf and table moved into the hall, a box on each of three
+#                                  trays; DualVLN walks to the shelf: "take the green box from the shelf and put it on the
+#                                  table", or "pick up the red box" (held) and then "put it on the table"
+#   SCENE=hospital_doors NAV2=1 ./live.sh fetch   three hinged doors, one blue (VLN=1: DualVLN walks there first):
+#                                  type "open the blue door" (or white / yellow); "home" shuts them, new colours
 #   STREAM=1 ./live.sh goto_mine   headless + WebRTC livestream instead of a window (goto_mine/goto_paper
 #                                  only); connect the Isaac Sim WebRTC Streaming Client to LIVESTREAM_ADDR
 #
@@ -43,6 +51,7 @@ source "${SCRIPT_DIR}/../isaac/isaac_env.sh"
 NAME="${LIVE_NAME:-${LIVE_CONTAINER}}"
 QUANT="${QUANT:-${DUALVLN_QUANT}}"   # DualVLN precision (config dualvln.quant): none (bf16) or 8bit
 LOCO="${LOCO:-eth}"             # base controller: eth (ETH's SRU policy, default) or ours (model_2600)
+ARM="${ARM:-moveit}"            # the pick: moveit (MoveIt plans the arm, default; started if needed) or ik (scripted IK)
 NAV2="${NAV2:-0}"               # 1: Nav2 plans and drives to the entry point E (fetch / fetchdemo)
 SCENE="${SCENE:-1}"             # a scene file scenes/<name>.yaml (or a path); 1 = warehouse_one_table, 3 = warehouse_three_tables
 TARGET="${TARGET:-auto}"        # multi-table scenes: which box, table/box (green/red), or auto (random per episode)
@@ -52,14 +61,15 @@ eval "$(python3 "${SCRIPT_DIR}/../isaac/scene_info.py" "${SCENE}")"
 COMMON_ENV+=(-e "FETCH_SCENE=${SCENE_FILE_CONTAINER}")
 START="${START:-${SCENE_START}}"   # x,y,yaw(deg); for the warehouse: 3.5 m from the table, which is in view
 TASK_ARGS=(--task "${SCENE_TASK}")
-[ "${SCENE_LAYOUT}" = "multi_table" ] && TASK_ARGS+=(--target "${TARGET}")
+[ "${SCENE_LAYOUT}" = "multi_table" ] || [ "${SCENE_LAYOUT}" = "shelf" ] && TASK_ARGS+=(--target "${TARGET}")
 NAV2_MAP="${SCENE_NAV2_MAP}"
 NAV2_ARGS=()
 if [ "${NAV2}" = "1" ]; then
     NAV2_ARGS=(--nav2 --vln_follower "${VLN_FOLLOWER}")
     # (re)start Nav2 unless it already runs with this scene's map
     if ! docker ps --format '{{.Names}}' | grep -qx "${NAV2_CONTAINER}" || ! head -1 "${SCRIPT_DIR}/../nav2/b2w_nav2_params.yaml" 2>/dev/null | grep -q "map ${NAV2_MAP})"; then
-        NAV2_MAP="${NAV2_MAP}" "${SCRIPT_DIR}/../nav2/run_nav2.sh"
+        NAV2_MAP="${NAV2_MAP}" NAV2_STAGING="${SCENE_NAV2_STAGING}" NAV2_OBSTACLE_RANGE="${SCENE_NAV2_OBSTACLE_RANGE}" \
+            NAV2_GLOBAL_LIDAR="${SCENE_NAV2_GLOBAL_LIDAR}" "${SCRIPT_DIR}/../nav2/run_nav2.sh"
     fi
 fi
 STREAM="${STREAM:-0}"           # 1 = headless + WebRTC livestream (goto modes), no DISPLAY needed
@@ -92,6 +102,12 @@ window() {  # $1 = script, rest = its arguments
         -c "/isaac-sim/python.sh /workspace/project/${script}${quoted} 2>&1"
 }
 
+ensure_moveit() {  # pick / fetch / fetchdemo with ARM=moveit: MoveIt must be running
+    [ "${ARM}" = "moveit" ] || return 0
+    curl -sf -m 2 "http://127.0.0.1:${MOVEIT_PORT}/health" >/dev/null 2>&1 || "${SCRIPT_DIR}/../moveit/run_moveit.sh"
+}
+ARM_ARGS=(--arm "${ARM}" --moveit_server "http://127.0.0.1:${MOVEIT_PORT}")
+
 server_up() { curl -s -m 2 "http://127.0.0.1:${DUALVLN_PORT}/health" >/dev/null 2>&1; }
 
 ensure_server() {
@@ -116,19 +132,24 @@ case "${MODE}" in
             --server "http://127.0.0.1:${DUALVLN_PORT}"
         ;;
     fetch)
-        ensure_server
-        echo "DualVLN server is up. The Isaac window takes ~1 min to open."
+        SHELF_VLN=()
+        if [ "${SCENE_LAYOUT}" != "shelf" ] && [ "${SCENE_LAYOUT}" != "doors" ]; then ensure_server
+        elif [ "${VLN:-0}" = "1" ]; then ensure_server; SHELF_VLN=(--live_vln)   # shelf/door scenes: DualVLN only with VLN=1
+        fi
+        ensure_moveit
+        echo "The Isaac window takes ~1 min to open."
         : > "${SCRIPT_DIR}/instruction.txt"
-        window fetch_box.py --device cpu --gui --real-time --interactive --loco "${LOCO}" --starts "${START}" "${NAV2_ARGS[@]}" "${TASK_ARGS[@]}" \
-            --vln_server "http://127.0.0.1:${DUALVLN_PORT}"
+        window fetch_box.py --device cpu --gui --real-time --interactive --loco "${LOCO}" --starts="${START}" "${NAV2_ARGS[@]}" "${TASK_ARGS[@]}" \
+            --vln_server "http://127.0.0.1:${DUALVLN_PORT}" "${ARM_ARGS[@]}" "${SHELF_VLN[@]}"
         ;;
     fetchdemo)
         ensure_server
+        ensure_moveit
         echo "DualVLN server is up. The Isaac window takes ~1 min to open."
         window fetch_box.py --device cpu --gui --real-time --deliver --loco "${LOCO}" --episodes "${1:-3}" \
             --vln "Walk to the wooden table and stop in front of it." \
-            --starts "${SCENE_DEMO_STARTS}" --out /workspace/renders/fetch_vln/live_results.json \
-            "${NAV2_ARGS[@]}" "${TASK_ARGS[@]}"
+            --starts="${SCENE_DEMO_STARTS}" --out /workspace/renders/fetch_vln/live_results.json \
+            "${NAV2_ARGS[@]}" "${TASK_ARGS[@]}" "${ARM_ARGS[@]}"
         ;;
     goto_mine|goto_paper)
         # One RFM policy does everything: no velocity command, no state machine.
@@ -164,13 +185,15 @@ case "${MODE}" in
         echo "sent: $*"
         ;;
     pick)
+        ensure_moveit
         window fetch_box.py --device cpu --gui --real-time --deliver --loco "${LOCO}" --episodes "${1:-3}" \
-            --out /workspace/renders/fetch/live_results.json "${TASK_ARGS[@]}"
+            --out /workspace/renders/fetch/live_results.json "${TASK_ARGS[@]}" "${ARM_ARGS[@]}"
         ;;
     stop)
         docker stop "${NAME}" >/dev/null 2>&1 && echo "simulator stopped" || echo "no simulator running"
         if [ "${1:-}" = "all" ]; then
             docker stop "${DUALVLN_CONTAINER}" >/dev/null 2>&1 && echo "DualVLN server stopped" || echo "no server running"
+            docker stop "${MOVEIT_CONTAINER}" >/dev/null 2>&1 && echo "MoveIt stopped" || echo "MoveIt not running"
         fi
         ;;
     *)

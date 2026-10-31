@@ -1,0 +1,139 @@
+# Scenario S6: the hospital reception, its medicine shelf and side table moved into the open hall, in front of where
+# the robot starts (scenes/hospital_hall.usda builds it on NVIDIA's hospital.usd; the bottles, trays and toolkit that
+# stood on them and the wheelchair in the hall are switched off). The boxes stand on the shelf's side that faces the
+# robot (the shelf is open on both sides). One box on each of three trays: green
+# low, yellow at 0.9 m, red high -- and the robot picks each differently: it crouches for the green one (6 cm) and
+# stands up a little for the red one (ETH's stance extrapolated, +1.8 cm). "Take the green box from the shelf and put
+# it on the table": DualVLN walks to the shelf it sees, Nav2 parks, MoveIt picks; Nav2 to the table, MoveIt places.
+# World frame of hospital.usd: x east, y north, z up; metres. The shelf's and table's numbers are the ones measured
+# at their old places (hospital_reception.yaml), moved with them (the table also turned 180 deg).
+name: hospital_hall
+layout: shelf
+task: RobotLab-Isaac-Shelf-Hospital-Unitree-B2W-Z1-Gripper-v0
+environment_usd: /workspace/scenes/hospital_hall.usda
+nav2_map: hospital_hall
+nav2_area: [-9.0, 12.0, -3.0, 9.5]      # x0, x1, y0, y1 of the Nav2 map: the reception hall
+nav2_staging: 2.0                       # Nav2's staging pose this far before the docking point (3 m: at the shelf,
+                                        # coming from the south, on the hall's south wall)
+nav2_obstacle_range: 3.5                # m: the lidar marks obstacles only this close (default 5): further out its
+nav2_global_lidar: false                # floor returns made phantom obstacles in the open hall; plan on the map only
+
+robot:
+  spawn: [1.0, -0.5]
+  live_start: [1.0, -0.5, 10]           # in the hall south of the reception desk, facing the shelf (its boxes in
+                                        # view) and, further right, the table
+  demo_starts: [[1.0, -0.5, 10], [0.0, 0.3, 0], [2.0, -1.2, 15]]
+  random_start: [-0.5, 2.5, -1.4, 0.6, -5, 20]  # x0, x1, y0, y1 and the heading range (deg): the shelf in view
+
+box:
+  size: [0.05, 0.05, 0.08]
+  mass: 0.2
+  colors:
+    red:    [0.88, 0.07, 0.07]
+    yellow: [1.0, 0.86, 0.02]
+    green:  [0.04, 0.72, 0.12]
+
+shelf_defaults:
+  abeam: 0.15                           # the box this far ahead of the robot's centre when it is parked
+  pre_dist: 0.16                        # pre-grasp this far back along the approach
+  lift: 0.05                            # lift before pulling the box out (over the tray's 3 cm lip)...
+  retreat: 0.20                         # ...then straight out
+  carry: [0.0, 0.6, -1.0, 1.0, 0.0]     # the box folded in over the body
+
+shelves:
+  shelf:                                # SM_MedShelf_01d at (6.6, 0.5), as it stood at the reception: worked from its
+                                        # west side, the one facing the robot's start (it is open on both sides)
+    label: shelf
+    walk: "Walk to the white shelf in front of you and stop in front of it."
+    near_x: 6.199
+    face: -1
+    box_x: 6.299                        # box centres 10 cm behind the open face
+    sides: [right]                      # from the south, heading north
+    rect: [6.199, 7.005, 0.043, 0.953]
+    levels:                             # one box per tray; how the robot picks there (moveit/shelf_reach.py)
+      green:                            # the tray below: crouched (stance 1 = 6 cm lower), parked 10 cm further off,
+        top: 0.504                      # steeply from above; reachable only for a box turned at most ~10 deg
+        y: 0.5
+        stance: 1.0
+        gap: 0.19                       # (Nav2 parks ~4 cm further, +-3: the arm reaches the box up to 0.25, and
+                                        # from 0.17 the pulled-out hand's wrist ends against the body: no carry plan)
+        pitch: [55, 45]
+        jaw_flip: true
+        yaw_jitter: 0.1
+        retreat: 0.16                   # (clear of the lip after ~14 cm; further, the wrist camera nears the body)
+      yellow:                           # the 0.9 m tray: as tested 24/24 at the reception
+        top: 0.878
+        y: 0.5
+        stance: 0.0
+        gap: 0.09
+        pitch: [45, 50, 40]
+        jaw_flip: true
+        yaw_jitter: 0.4
+      red:                              # the tray above: standing taller (stance -0.75 = +1.8 cm), nearly level
+        top: 1.253
+        y: 0.5
+        stance: -0.75
+        gap: 0.09
+        pitch: [15, 13, 17]
+        jaw_flip: false
+        yaw_jitter: 0.1                 # (+-6 deg: nearly level, in the simulator the arm reached a box turned -12 deg
+                                        # only at the third pitch, and with the docking's +-3 deg +-11 was too much)
+        lift: 0.04                      # over the 2.9 cm lip: the arm, nearly level above the shoulder, is short of 5
+        place_depth: 0.22               # held nearly level, the box goes down 22 cm onto the table (10: out of reach;
+                                        # at 22 the hand straight in is on the edge, turned 15-30 deg well inside)
+    collision:                          # for MoveIt (world frame, [x0, y0, z0, x1, y1, z1]): every tray's floor
+      tray_017:       [6.199, 0.042, 0.112, 6.576, 0.952, 0.172]   # and lips, the middle panel, the frame
+      tray_053:       [6.199, 0.053, 0.445, 6.576, 0.942, 0.504]
+      lip_front_053:  [6.199, 0.053, 0.504, 6.222, 0.942, 0.533]
+      lip_back_053:   [6.558, 0.053, 0.504, 6.576, 0.942, 0.533]
+      lip_north_053:  [6.199, 0.053, 0.504, 6.576, 0.069, 0.533]
+      lip_south_053:  [6.199, 0.925, 0.504, 6.576, 0.942, 0.533]
+      tray_091:       [6.199, 0.053, 0.819, 6.576, 0.942, 0.878]
+      lip_front_091:  [6.199, 0.053, 0.878, 6.222, 0.942, 0.907]
+      lip_back_091:   [6.558, 0.053, 0.878, 6.576, 0.942, 0.907]
+      lip_north_091:  [6.199, 0.053, 0.878, 6.576, 0.069, 0.907]
+      lip_south_091:  [6.199, 0.925, 0.878, 6.576, 0.942, 0.907]
+      tray_125:       [6.199, 0.053, 1.194, 6.576, 0.942, 1.253]
+      lip_front_125:  [6.199, 0.053, 1.253, 6.222, 0.942, 1.282]
+      lip_back_125:   [6.558, 0.053, 1.253, 6.576, 0.942, 1.282]
+      lip_north_125:  [6.199, 0.053, 1.253, 6.576, 0.069, 1.282]
+      lip_south_125:  [6.199, 0.925, 1.253, 6.576, 0.942, 1.282]
+      tray_163:       [6.199, 0.053, 1.568, 6.576, 0.942, 1.627]
+      lip_front_163:  [6.199, 0.053, 1.627, 6.222, 0.942, 1.656]
+      lip_back_163:   [6.558, 0.053, 1.627, 6.576, 0.942, 1.656]
+      lip_north_163:  [6.199, 0.053, 1.627, 6.576, 0.069, 1.656]
+      lip_south_163:  [6.199, 0.925, 1.627, 6.576, 0.942, 1.656]
+      middle:         [6.576, 0.042, 0.000, 6.623, 0.952, 2.010]
+      side_north:     [6.199, 0.042, 0.000, 6.576, 0.055, 2.000]
+      side_south:     [6.199, 0.940, 0.000, 6.576, 0.952, 2.000]
+      top:            [6.199, 0.042, 1.950, 6.623, 0.952, 2.010]
+
+tables:
+  table:                                # SM_SideTable_02a at (8.8, -1.6), turned 180 deg; worked from its west edge
+    label: table
+    near_x: 8.344
+    face: -1
+    top: 0.81
+    spot: [8.444, -1.60]                # the box centre, 10 cm from the edge
+    rect: [8.344, 9.254, -1.965, -1.235]
+    sides: [left]                       # from the north, heading south
+    abeam: 0.12
+    collision:
+      top: [8.344, -1.965, 0.76, 9.254, -1.235, 0.81]
+
+obstacles:                              # floor footprints (x0, x1, y0, y1) for the scripted fallback drive and starts
+  shelf:        [6.199, 7.005, 0.043, 0.953]
+  table:        [8.344, 9.254, -1.965, -1.235]
+  desks:        [-0.69, 4.65, 1.99, 4.41]
+  north_room:   [-9.00, 3.20, 5.30, 9.00]
+  chairs:       [-8.70, -3.94, -0.05, 1.41]
+  supply_cart:  [4.60, 5.20, 3.37, 4.22]
+  trashcan:     [3.59, 3.89, -2.67, -2.37]
+  east_table:   [9.92, 11.12, -2.28, -1.30]
+  east_wall:    [11.05, 12.00, -3.00, 9.50]
+  south_wall:   [-9.00, 12.00, -3.00, -2.70]
+
+camera:                                 # fetch_box.py --cam scene / scene_follow
+  fixed: {eye: [3.6, -2.3, 2.6], lookat: [7.0, 0.6, 0.8]}       # the hall: shelf, table, robot
+  follow: {eye: [-2.0, -1.7, 1.6], lookat: [0.4, 0.4, 0.5]}     # south-west of the robot
+  shelf: {eye: [4.6, -1.3, 1.5], lookat: [6.3, 0.5, 0.9]}       # close on the shelf's working side (--cam custom)

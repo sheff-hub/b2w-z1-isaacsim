@@ -1,0 +1,112 @@
+# ============================================================================
+#  Reconstruction config: DEFAULTS.  Edit this file, not the code.
+#
+#  Settings are layered, later wins:
+#    1. this file            defaults (machine paths from ../config.yaml)
+#    2. scenes/<name>.yaml   one short file per room: its photos, its name, and
+#                            the settings that room needs (see scenes/README.md)
+#    3. the command line     e.g.  python3 reconstruct.py kitchen --caps 600000,750000
+#
+#  Machine-specific paths and the GPU come from the repository's config.yaml (see "paths" below).
+# ============================================================================
+
+# --- What to reconstruct (normally set by a scene file) ---------------------
+dataset:
+  # Folder of photos. Either a bare name (looked up under `paths.dataset_root`)
+  # or an absolute path.
+  name: null
+  # Scene name for all outputs. null -> same as the photo folder's name
+  scene_name: null
+
+# --- Where things live ------------------------------------------------------
+# null = taken from the repository's config.yaml (one file per machine for the whole project):
+#   dataset_root <- <paths.nurec>/mine/dataset_for_no_mesh    scenes_root <- <paths.nurec>/mine
+#   threedgrut   <- paths.threedgrut
+paths:
+  dataset_root: null      # where photo folders sit (one folder per room)
+  scenes_root:  null      # where scenes are built
+  # 3DGRUT checkout. Must contain train.py and .venv/ (see README).
+  threedgrut:   null
+  cuda_home:    /usr      # where nvcc lives (3DGRUT compiles kernels at run time)
+
+# --- Hardware (THIS MACHINE) ------------------------------------------------
+gpu:
+  # Pin by UUID so we never take a GPU that belongs to someone else (null: gpu.uuid of the repository's
+  # config.yaml). `nvidia-smi --query-gpu=uuid,name --format=csv` lists them; "all" only on a machine you own.
+  uuid: null
+  # Leave headroom (GB) when choosing the training downsample factor.
+  reserve_gb: 8
+  # The card is shared. Before training and evaluation, wait until this much is free (the log then lists who holds
+  # the rest), but at most wait_min minutes, then try anyway.
+  min_free_gb: 10
+  wait_min: 30
+
+# --- Ingest / validation ----------------------------------------------------
+validate:
+  min_images: 100          # refuse to start below this; coverage will be too thin
+  max_soft_fraction: 0.25  # warn if more than this fraction look motion-blurred
+  require_single_lens: true   # abort on mixed lenses: breaks single_camera SfM
+  require_uniform_size: true  # abort on mixed dimensions
+
+# --- RAW handling -----------------------------------------------------------
+prepare:
+  # Apple ProRAW (.DNG) is unreadable by COLMAP and gets converted to JPEG.
+  raw_extensions: [".dng", ".DNG"]
+  raw_long_side: 2000      # long side for converted RAW frames
+  jpeg_quality: 95
+
+# --- COLMAP -----------------------------------------------------------------
+colmap:
+  docker_image: colmap/colmap:latest
+  camera_model: PINHOLE    # what 3DGUT expects; do not change without reason
+  # Feature-detection resolution. null -> auto: native if few images, else 2000.
+  # Raise it for texture-poor scenes (blank walls); costs time.
+  max_image_size: null
+  auto_max_image_size:
+    native_below_images: 500   # <500 photos -> native resolution
+    default: 2000              # otherwise
+  matcher: exhaustive      # exhaustive | sequential  (sequential for >1500 photos)
+  estimate_affine_shape: true   # NVIDIA's recipe; better features, CPU-only
+  domain_size_pooling: true     # same
+  # Seed intrinsics from EXIF FocalLengthIn35mmFilm when available.
+  # Essential when EXIF is stripped: COLMAP's fallback prior is 1.2*max(w,h),
+  # which was 3x wrong on one of our datasets.
+  seed_intrinsics: true
+
+# --- Training ---------------------------------------------------------------
+train:
+  config_name: apps/colmap_3dgut_mcmc.yaml
+  iterations: 30000        # fixed; this is NOT the knob to tune
+  # Training image downscale. null -> auto from image count + VRAM.
+  # 2 means 2016x1512 for 12MP input, which is the proven setting.
+  downsample_factor: null
+
+  # ----- Gaussian budget: the knob that actually matters -------------------
+  # Do NOT use the documented 1,000,000 blindly. What matters is the ratio of
+  # gaussians to COLMAP points (reported by the sfm stage).
+  # Measured: 8.9x -> fog; 2.9x -> best on a 428-photo bedroom (+1.06 dB).
+  #
+  # caps: null           -> single run at `cap_ratio` x the point count
+  # caps: [300000, 400000, 500000]
+  #                      -> trains each, scores them on identical frames,
+  #                         exports the winner. This is the 300k/400k/500k
+  #                         comparison, ~45 min per entry.
+  caps: null
+  cap_ratio: 2.0
+  cap_min: 150000
+  cap_max: 2000000
+
+# --- Export -----------------------------------------------------------------
+export:
+  format: nurec            # nurec (Isaac Sim 5.0-6.0) | standard (ParticleField, 6.0+)
+  # Drop stray far-away gaussians before export. Without this they overflow
+  # float16 to +/-inf and wreck the asset's bounds.
+  prune_radius_factor: 50.0   # x the checkpoint's scene_extent
+  reorient: true              # fixes the 90-degree tilt; leave on
+
+# --- Reporting --------------------------------------------------------------
+report:
+  write_markdown: true
+  comparison_images: 3     # held-out renders saved next to ground truth
+  # NOTE: LPIPS is scored at full resolution and is therefore inflated ~3.7x
+  # versus published numbers. PSNR is the metric to trust. See README.

@@ -1,0 +1,9 @@
+# The two-lap corridor walk of 22 Oct 2026 (iPhone 14 Pro, Record3D EXR + JPG, 407 s, 24,397 frames, 157 m).
+# Built by hand as M1 on 22 Oct (PSNR 27.1 dB, loop error 0.4 cm); this runs the same
+# method automatically. (The first run of this file, 24 Oct, used the sharpest of every 8 frames: add
+#   prep: {keep_every: 8}
+# to repeat it exactly; the default now picks one image per 6 cm / 3 deg of motion.)
+#     python3 reconstruct.py record3d_2laps
+recording:
+  name: 2026-10-22--16-54-08
+  scene_name: record3d_2laps

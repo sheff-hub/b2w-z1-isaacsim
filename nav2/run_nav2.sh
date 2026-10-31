@@ -11,7 +11,8 @@ ISAAC="$(cd "${HERE}/../isaac" && pwd)"
 eval "$(python3 "${HERE}/../isaac/config.py" --shell)"   # config.yaml: image, container name, ROS domain
 if [ "${1:-}" = "stop" ]; then docker stop "${NAV2_CONTAINER}" >/dev/null 2>&1 && echo "nav2 stopped" || echo "nav2 not running"; exit 0; fi
 docker rm -f "${NAV2_CONTAINER}" >/dev/null 2>&1 || true
-NAV2_SENSOR="${NAV2_SENSOR:-os0}" NAV2_CONTROLLER="${NAV2_CONTROLLER:-rpp}" NAV2_MAP="${NAV2_MAP:-warehouse}" python3 "${HERE}/make_params.py"
+NAV2_SENSOR="${NAV2_SENSOR:-os0}" NAV2_CONTROLLER="${NAV2_CONTROLLER:-rpp}" NAV2_MAP="${NAV2_MAP:-warehouse}" NAV2_STAGING="${NAV2_STAGING:-2.1}" \
+    NAV2_OBSTACLE_RANGE="${NAV2_OBSTACLE_RANGE:-5.0}" NAV2_GLOBAL_LIDAR="${NAV2_GLOBAL_LIDAR:-1}" python3 "${HERE}/make_params.py"
 docker run -d --name "${NAV2_CONTAINER}" --network=host --ipc=host \
     -e ROS_DOMAIN_ID="${ROS_DOMAIN_ID}" \
     -e RMW_IMPLEMENTATION=rmw_fastrtps_cpp \

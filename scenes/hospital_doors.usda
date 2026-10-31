@@ -1,0 +1,21 @@
+#usda 1.0
+(
+    defaultPrim = "Root"
+    metersPerUnit = 1
+    upAxis = "Z"
+    subLayers = [@https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Environments/Hospital/hospital.usd@]
+    doc = """The hospital's east corridor with three openable doors (scenes/hospital_doors.yaml).
+
+    On top of NVIDIA's hospital.usd, the three doors in the corridor's east wall are switched off: SM_Door_02b_51
+    (room A), SM_Door_01_48 (room B) and SM_Door_02b3 (room C), static meshes. The task spawns a hinged door with a
+    lever handle in each opening instead (scenes/assets/door_hinged.usda, built from SM_Door_01 by
+    tools/build_door_asset.py). Also off: the chair in room A that stands in that door's swing."""
+)
+
+over "Root"
+{
+    over "SM_Door_02b_51" (active = false) {}
+    over "SM_Door_01_48" (active = false) {}
+    over "SM_Door_02b3" (active = false) {}
+    over "SM_Chair_01a15" (active = false) {}
+}

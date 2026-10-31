@@ -1,0 +1,53 @@
+#usda 1.0
+(
+    defaultPrim = "Root"
+    metersPerUnit = 1
+    upAxis = "Z"
+    subLayers = [@https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Environments/Hospital/hospital.usd@]
+    doc = """The hospital reception with its medicine shelf and side table moved into the open hall, in front of
+    where the robot starts (scenes/hospital_hall.yaml).
+
+    On top of NVIDIA's hospital.usd:
+    - the bottles, trays and the toolkit that stood on the shelf and the table are switched off (19 prims), and the
+      wheelchair that stood in the hall;
+    - the medicine shelf (SM_MedShelf_01d_67) moves from behind the reception desk to (6.6, 0.5), turned as it stood
+      there: the trays it was used from face west, towards the robot (the shelf is open on both sides);
+    - the side table (SM_SideTable_02a3) moves from the wall to (8.8, -1.6), turned 180 deg.
+    Both keep their own colliders and materials."""
+)
+
+over "Root"
+{
+    over "SM_Toolkit_02i_3" (active = false) {}
+    over "SM_UtilitiesTray_01e_6" (active = false) {}
+    over "SM_UtilitiesTray_01e3_251" (active = false) {}
+    over "SM_PillBottleSet_01e26_254" (active = false) {}
+    over "SM_PillBottleSet_01b2_257" (active = false) {}
+    over "SM_PillBottleSet_01b3" (active = false) {}
+    over "SM_PillBottleSet_01b4" (active = false) {}
+    over "SM_PillBottleSet_01e27" (active = false) {}
+    over "SM_PillBottleSet_01e28" (active = false) {}
+    over "SM_PillBottleSet_01b5" (active = false) {}
+    over "SM_PillBottleSet_01b6" (active = false) {}
+    over "SM_PillBottleSet_01b7" (active = false) {}
+    over "SM_PillBottleSet_01e29" (active = false) {}
+    over "SM_PillBottleSet_01b8" (active = false) {}
+    over "SM_PillBottleSet_01d2_269" (active = false) {}
+    over "SM_PillBottleSet_01c2_272" (active = false) {}
+    over "SM_PillBottle_01v_275" (active = false) {}
+    over "SM_PillBottle_01t_278" (active = false) {}
+    over "SM_PillBottleSet_01a30_281" (active = false) {}
+    over "SM_WheelChair_01a2" (active = false) {}
+
+    over "SM_MedShelf_01d_67"
+    {
+        double3 xformOp:translate = (6.6, 0.5, 0)
+        quatd xformOp:orient = (0.7071067811865476, 0, 0, 0.7071067811865476)
+    }
+
+    over "SM_SideTable_02a3"
+    {
+        double3 xformOp:translate = (8.8, -1.6, 0)
+        quatd xformOp:orient = (0, 0, 0, 1)
+    }
+}

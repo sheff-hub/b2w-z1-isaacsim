@@ -26,12 +26,12 @@ def deep_merge(base: dict, over: dict) -> dict:
     return base
 
 
-REPO = Path(__file__).resolve().parents[2]  # reconstruction/tools/common.py -> the repository
+REPO = Path(__file__).resolve().parents[2]  # reconstruction_with_mesh/tools/common.py -> the repository
 
 
 def repo_machine_config() -> dict:
     """The machine settings this script shares with the rest of the project, from the repository's config.yaml
-    (config.example.yaml if there is none yet): the NuRec folder, the 3DGRUT checkout and the GPU."""
+    (config.example.yaml if there is none yet): the NuRec folder, the 3DGRUT checkout, the GPU and Isaac Sim."""
     for name in ("config.yaml", "config.example.yaml"):
         p = REPO / name
         if p.exists():
@@ -45,11 +45,16 @@ def repo_machine_config() -> dict:
         return str(q if q.is_absolute() else (REPO / q).resolve())
 
     nurec = absolute(deep_get(rc, "paths.nurec", "scenes/nurec"))
-    out = {"paths": {"dataset_root": f"{nurec}/mine/dataset", "scenes_root": f"{nurec}/mine"}, "gpu": {}}
+    out = {"paths": {"recordings_root": f"{nurec}/mine/dataset_for_with_mesh", "scenes_root": f"{nurec}/mine/withmesh"},
+           "gpu": {}, "isaac": {}}
     if deep_get(rc, "paths.threedgrut"):
         out["paths"]["threedgrut"] = absolute(deep_get(rc, "paths.threedgrut"))
     if deep_get(rc, "gpu.uuid"):
         out["gpu"]["uuid"] = str(deep_get(rc, "gpu.uuid"))
+    if deep_get(rc, "images.isaac_sim"):
+        out["isaac"]["docker_image"] = str(deep_get(rc, "images.isaac_sim"))
+    if deep_get(rc, "paths.isaac_cache"):
+        out["isaac"]["cache_root"] = absolute(deep_get(rc, "paths.isaac_cache"))
     return out
 
 
@@ -58,14 +63,14 @@ def load_config(path, *overlays) -> dict:
     filled from the repository's config.yaml."""
     with open(path) as f:
         cfg = yaml.safe_load(f)
-    for section, values in repo_machine_config().items():
-        for k, v in values.items():
-            if deep_get(cfg, f"{section}.{k}") is None:
-                cfg.setdefault(section, {})[k] = v
     for o in overlays:
         if o:
             with open(o) as f:
                 deep_merge(cfg, yaml.safe_load(f) or {})
+    for section, values in repo_machine_config().items():
+        for k, v in values.items():
+            if deep_get(cfg, f"{section}.{k}") is None:
+                cfg.setdefault(section, {})[k] = v
     return cfg
 
 
@@ -113,7 +118,20 @@ class State:
         return self.data["stages"].get(stage, {}).get("ok", False)
 
     def mark(self, stage: str, **info):
-        self.data["stages"][stage] = {"ok": True, "at": time.strftime("%Y-%m-%d %H:%M:%S"), **info}
+        self._apply({stage: {"ok": True, "at": time.strftime("%Y-%m-%d %H:%M:%S"), **info}}, [])
+
+    def drop(self, stages):
+        """Forget stages (built from output that is being redone)."""
+        self._apply({}, list(stages))
+
+    def _apply(self, sets: dict, drops: list):
+        """Write only this run's change over what is on disk now: a second run of the scene (e.g. --only train while
+        the first one fuses the mesh) must not lose the stages the other one finished meanwhile."""
+        if self.path.exists():
+            self.data = json.loads(self.path.read_text())
+        for s in drops:
+            self.data["stages"].pop(s, None)
+        self.data["stages"].update(sets)
         self.save()
 
     def get(self, stage: str, key: str, default=None):
@@ -121,7 +139,9 @@ class State:
 
     def save(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, indent=2))
+        tmp = self.path.with_suffix(f".tmp{os.getpid()}")
+        tmp.write_text(json.dumps(self.data, indent=2))
+        tmp.replace(self.path)                     # atomic: the other run never reads half a file
 
 
 def run(cmd, log: Log, cwd=None, env=None, check=True) -> subprocess.CompletedProcess:
@@ -229,3 +249,42 @@ def venv_python(threedgrut: Path) -> Path:
             f"3DGRUT venv not found at {p}\n"
             "Install it first — see README section 'Install 3DGRUT'.")
     return p
+
+
+PKG = Path(__file__).resolve().parent.parent      # the package folder (config.yaml, .venv, tools/)
+
+
+def tools_python(cfg: dict) -> Path:
+    """The tools environment (pose prep, loop closure, BA, LiDAR fusion, mesh checks, stage building): .venv in the
+    package, made by setup_tools_env.sh. A relative paths.tools_python is relative to the package folder."""
+    p = Path(os.path.expanduser(str(deep_get(cfg, "paths.tools_python", ".venv/bin/python"))))
+    if not p.is_absolute():
+        p = PKG / p
+    if not p.exists():
+        raise SystemExit(f"tools environment not found at {p}\nCreate it first: ./setup_tools_env.sh (see README).")
+    return p
+
+
+def tool(cfg: dict, script: str, args: list, log: Log, cwd=None) -> subprocess.CompletedProcess:
+    """Run tools/<script> with the tools environment; output goes into pipeline.log."""
+    env = {"OPENCV_IO_ENABLE_OPENEXR": "1", "PYTHONUNBUFFERED": "1"}
+    return run([str(tools_python(cfg)), str(PKG / "tools" / script)] + [str(a) for a in args], log, cwd=cwd, env=env)
+
+
+def isaac_docker(cfg: dict, mounts: dict[str, str], command: str, log: Log, name: str = "recon-isaac-check"):
+    """Run a bash command in the Isaac Sim container (headless). It runs as the image's own user (uid 1234), so
+    whatever it writes into a mount must be in a world-writable folder; the command should chmod its outputs."""
+    image = deep_get(cfg, "isaac.docker_image", "nvcr.io/nvidia/isaac-sim:5.1.0")
+    cache = expand(deep_get(cfg, "isaac.cache_root", "~/docker/isaac-sim"))
+    subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+    cmd = ["docker", "run", "--rm", "--name", name, "--entrypoint", "bash", "--gpus", docker_gpu_flag(cfg),
+           "-e", "ACCEPT_EULA=Y", "-e", "PRIVACY_CONSENT=Y"]
+    for sub, cont in (("cache/main", "/isaac-sim/.cache"), ("cache/computecache", "/isaac-sim/.nv/ComputeCache"),
+                      ("logs", "/isaac-sim/.nvidia-omniverse/logs"), ("config", "/isaac-sim/.nvidia-omniverse/config"),
+                      ("data", "/isaac-sim/.local/share/ov/data"), ("pkg", "/isaac-sim/.local/share/ov/pkg")):
+        (cache / sub).mkdir(parents=True, exist_ok=True)   # shader and asset caches: the first run fills them (slow)
+        cmd += ["-v", f"{cache / sub}:{cont}:rw"]
+    for host, cont in mounts.items():
+        cmd += ["-v", f"{host}:{cont}"]
+    cmd += [image, "-c", command]
+    return run(cmd, log, check=False)

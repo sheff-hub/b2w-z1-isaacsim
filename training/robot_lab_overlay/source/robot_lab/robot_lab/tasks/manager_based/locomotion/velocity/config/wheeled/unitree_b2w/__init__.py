@@ -431,3 +431,24 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeB2WFlatPPORunnerCfg",
     },
 )
+
+# the hospital reception: three boxes on a shelf tray, a side table to put one on (fetch_box.py, scene layout "shelf")
+gym.register(
+    id="RobotLab-Isaac-Shelf-Hospital-Unitree-B2W-Z1-Gripper-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.fetch_env_cfg:UnitreeB2WZ1GripperShelfEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeB2WFlatPPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="RobotLab-Isaac-Door-Hospital-Unitree-B2W-Z1-Gripper-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.fetch_env_cfg:UnitreeB2WZ1GripperDoorEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:UnitreeB2WFlatPPORunnerCfg",
+    },
+)

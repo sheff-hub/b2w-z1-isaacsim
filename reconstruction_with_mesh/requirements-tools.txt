@@ -1,0 +1,12 @@
+# The tools environment (.venv, made by setup_tools_env.sh): pose prep, loop closure, bundle adjustment, LiDAR
+# fusion, mesh checks, stage building. Versions are the ones this pipeline was tested with (24 Oct 2026).
+numpy>=1.24,<2            # vdbfusion 0.1.6 is built against numpy 1.x
+opencv-python-headless>=4.8   # with OpenEXR (Record3D depth), enabled by OPENCV_IO_ENABLE_OPENEXR
+scipy>=1.11
+pycolmap==4.2.1           # the database calls (rigs/frames) are 4.x API
+open3d>=0.18
+vdbfusion==0.1.6
+trimesh>=4.0
+matplotlib>=3.7
+PyYAML>=6.0
+usd-core>=24.0            # pxr, to write the Isaac stage

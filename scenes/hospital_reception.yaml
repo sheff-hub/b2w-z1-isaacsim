@@ -1,0 +1,95 @@
+# Scenario S5: NVIDIA's hospital, the reception. Three boxes (red, yellow, green; order shuffled at every reset)
+# stand on the 0.91 m tray of the medicine shelf behind the reception desk (SM_MedShelf_01d, west side). The task
+# names a box; the robot takes it out of the shelf and puts it on the side table 3 m west (SM_SideTable_02a).
+# Shelf, desk and table are the hospital's own furniture (static triangle-mesh colliders); everything below was
+# measured from hospital.usd (world frame of the stage: x east, y north, z up; metres).
+name: hospital_reception
+layout: shelf
+task: RobotLab-Isaac-Shelf-Hospital-Unitree-B2W-Z1-Gripper-v0
+environment_usd: https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1/Isaac/Environments/Hospital/hospital.usd
+nav2_map: hospital_reception
+nav2_area: [-7.0, 7.0, -3.0, 9.5]       # x0, x1, y0, y1 of the Nav2 map (the reception hall, not the whole hospital)
+nav2_staging: 3.0                       # Nav2's staging pose this far before the docking point (default 2.1): the shelf
+                                        # is reached along the reception desk; 3 m puts the staging pose past its corner
+
+robot:
+  spawn: [1.0, -0.5]
+  live_start: [1.0, -0.5, 90]           # in the hall in front of the reception desk, facing it
+  demo_starts: [[1.0, -0.5, 90], [-2.0, 0.5, 45], [3.0, 0.0, 180]]
+  random_start: [-2.5, 3.5, -1.6, 1.0]  # x0, x1, y0, y1: run.py fetch starts each episode anywhere in here
+
+box:
+  size: [0.05, 0.05, 0.08]              # the fetch boxes (5 x 5 cm, 8 cm tall, the gripper opens ~8 cm)
+  mass: 0.2
+  colors:
+    red:    [0.88, 0.07, 0.07]
+    yellow: [1.0, 0.86, 0.02]
+    green:  [0.04, 0.72, 0.12]
+
+shelf:                                  # where the boxes are: the 0.91 m tray of the medicine shelf, its west side
+  name: shelf
+  near_x: -0.724                        # the open face (outer face of the tray's front lip); the robot stands at -x
+  face: -1                              # -1: the robot works from the -x side of near_x, +1: from the +x side
+  top: 0.878                            # the tray floor the boxes stand on (its front lip reaches 0.907)
+  box_x: -0.624                         # box centres: 10 cm behind the open face...
+  slots_y: [4.55, 4.73, 4.91]           # ...at these y, one box per slot, colours shuffled (the tray spans 4.43-5.29;
+                                        # further north the robot's front would reach the wall, see abeam)
+  sides: [right]                        # docking with the shelf on the robot's right, coming from the south: shelf and
+                                        # side table stand against the wall of the room behind them (y 5.30)
+  abeam: 0.15                           # the box this far ahead of the robot's centre: its front (0.44 m) stays 9+ cm
+                                        # off that wall
+  gap: 0.09                             # robot's hips to the shelf face (m; Nav2 parks 4 cm further): from closer, a
+                                        # box turned towards the robot is out of the arm's reach
+  pitch: [45, 50, 40]                   # grasp approach, degrees below horizontal (tried in turn: a box turned the
+                                        # far way can be out of reach at one)...
+  jaw_flip: true                        # ...with the gripper rolled 180 deg: the wrist RealSense (16-22 cm off the
+                                        # wrist) then hangs down and back, outside the shelf; upright it rides up into
+                                        # the tray above. Level approaches are out of the Z1's reach (moveit/README.md)
+  pre_dist: 0.16                        # pre-grasp this far back along the approach: the gripper outside the shelf
+  lift: 0.05                            # lift the box this much before pulling it out (the lip is 3 cm)
+  retreat: 0.20                         # then straight out of the shelf (13 cm clear the lip; 25 is beyond reach)
+  crouch: false                         # the tray is above the arm's shoulder: no crouch
+  carry: [0.0, 0.6, -1.0, 1.0, 0.0]     # carry pose, joints 1-5 (joint1 relative to the arm's side): the box folded in
+                                        # over the body; the tables' carry pose holds it out to the side, into the shelf
+  collision:                            # for MoveIt (world frame, [x0, y0, z0, x1, y1, z1])
+    tray_091:    [-0.724, 4.418, 0.819, -0.347, 5.307, 0.878]
+    lip_front:   [-0.724, 4.418, 0.878, -0.701, 5.307, 0.907]
+    lip_back:    [-0.365, 4.418, 0.878, -0.347, 5.307, 0.907]
+    lip_south:   [-0.724, 4.418, 0.878, -0.347, 4.434, 0.907]
+    lip_north:   [-0.724, 5.290, 0.878, -0.347, 5.307, 0.907]
+    tray_125:    [-0.724, 4.418, 1.194, -0.347, 5.307, 1.281]
+    tray_053:    [-0.724, 4.418, 0.445, -0.347, 5.307, 0.532]
+    tray_017:    [-0.724, 4.407, 0.112, -0.347, 5.317, 0.172]
+    tray_163:    [-0.724, 4.418, 1.568, -0.347, 5.307, 1.656]
+    middle:      [-0.347, 4.407, 0.000, -0.300, 5.317, 2.010]
+    side_south:  [-0.724, 4.407, 0.000, -0.347, 4.420, 2.000]
+    side_north:  [-0.724, 5.305, 0.000, -0.347, 5.317, 2.000]
+    top:         [-0.724, 4.407, 1.950, -0.300, 5.317, 2.010]
+
+place:                                  # where the box goes: the side table's free corner
+  name: side table
+  near_x: -3.57                         # its east edge; the robot works from the +x side
+  face: 1
+  top: 0.81
+  spot: [-3.67, 4.80]                   # box centre: 10 cm from the edge, clear of the tray and the toolkit on it
+  rect: [-4.48, -3.57, 4.60, 5.33]      # x0, x1, y0, y1 of the top (a placed box must end inside)
+  sides: [left]                         # from the south (the wall behind it), the table on the robot's left
+  abeam: 0.12
+  collision:
+    top:     [-4.48, 4.60, 0.76, -3.57, 5.33, 0.81]
+    tray:    [-4.35, 4.63, 0.81, -3.77, 5.02, 0.90]   # a utilities tray stands on the table...
+    toolkit: [-3.91, 4.99, 0.81, -3.59, 5.26, 0.85]   # ...and a toolkit
+
+obstacles:                              # floor footprints (x0, x1, y0, y1) for the scripted fallback drive and starts
+  medshelf:     [-0.724, 0.08, 4.407, 5.317]
+  side_table:   [-4.48, -3.57, 4.60, 5.33]
+  desks:        [-0.69, 4.65, 1.99, 4.41]
+  north_room:   [-7.00, 3.20, 5.30, 9.00]   # the room behind the shelf and the table (its south wall at y 5.30)
+  chairs:       [-8.70, -3.94, -0.05, 1.41]
+  supply_cart:  [4.60, 5.20, 3.37, 4.22]
+  wheelchair:   [4.85, 5.95, 1.40, 2.70]
+
+camera:                                 # fetch_box.py --cam scene / scene_follow
+  fixed: {eye: [-2.3, 1.2, 2.6], lookat: [-2.2, 4.9, 0.7]}       # from the south, high: shelf, table and robot
+  follow: {eye: [-2.0, -1.7, 1.6], lookat: [0.4, 0.4, 0.5]}      # south-west of the robot (east is behind the desk)
+  shelf: {eye: [-2.2, 3.6, 1.5], lookat: [-0.75, 4.85, 0.9]}     # close on the shelf's west face (--cam custom)

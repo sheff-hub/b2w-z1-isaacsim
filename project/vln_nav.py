@@ -380,8 +380,9 @@ class Navigator:
         clear, blocked = math.inf, 0.0
         log["motion"] = []  # per control step: t, commanded vx wz, measured vx wz, clearance (m, 9 = none)
         while t_sim < max_time:
-            if self.should_stop():
-                reason = "interrupted"
+            s = self.should_stop()
+            if s:  # True: a new command came in; a string: the caller's own reason (e.g. "near" the goal)
+                reason = s if isinstance(s, str) else "interrupted"
                 break
             x, y, yaw = self.base_pose()
             if not planner.busy() and goal is None and t_sim >= next_req - 1e-6:
